@@ -1,0 +1,265 @@
+// API Service Layer - Frontend için
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+
+class ApiService {
+  private token: string | null = null;
+
+  setToken(token: string) {
+    this.token = token;
+    localStorage.setItem('auth_token', token);
+  }
+
+  getToken(): string | null {
+    if (!this.token) {
+      this.token = localStorage.getItem('auth_token');
+    }
+    return this.token;
+  }
+
+  clearToken() {
+    this.token = null;
+    localStorage.removeItem('auth_token');
+  }
+
+  private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+    const token = this.getToken();
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    };
+
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      ...options,
+      headers,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Bir hata oluştu' }));
+      throw new Error(error.error || `HTTP ${response.status}`);
+    }
+
+    return response.json();
+  }
+
+  // Auth
+  async login(email: string, password: string) {
+    const data = await this.request<{ token: string; user: any }>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
+    this.setToken(data.token);
+    return data;
+  }
+
+  async getCurrentUser() {
+    return this.request<any>('/auth/me');
+  }
+
+  async register(userData: any) {
+    const data = await this.request<{ token: string; user: any }>('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(userData),
+    });
+    this.setToken(data.token);
+    return data;
+  }
+
+  // Users
+  async getUsers() {
+    return this.request<any[]>('/users');
+  }
+
+  async createUser(userData: any) {
+    return this.request<any>('/users', { method: 'POST', body: JSON.stringify(userData) });
+  }
+
+  async updateUser(id: string, userData: any) {
+    return this.request<any>(`/users/${id}`, { method: 'PUT', body: JSON.stringify(userData) });
+  }
+
+  async deleteUser(id: string) {
+    return this.request(`/users/${id}`, { method: 'DELETE' });
+  }
+
+  // Roles
+  async getRoles() {
+    return this.request<any[]>('/roles');
+  }
+
+  async createRole(roleData: any) {
+    return this.request<any>('/roles', { method: 'POST', body: JSON.stringify(roleData) });
+  }
+
+  async updateRole(id: string, roleData: any) {
+    return this.request<any>(`/roles/${id}`, { method: 'PUT', body: JSON.stringify(roleData) });
+  }
+
+  async deleteRole(id: string) {
+    return this.request(`/roles/${id}`, { method: 'DELETE' });
+  }
+
+  // Companies
+  async getCompanies() {
+    return this.request<any[]>('/companies');
+  }
+
+  async createCompany(companyData: any) {
+    return this.request<any>('/companies', { method: 'POST', body: JSON.stringify(companyData) });
+  }
+
+  async updateCompany(id: string, companyData: any) {
+    return this.request<any>(`/companies/${id}`, { method: 'PUT', body: JSON.stringify(companyData) });
+  }
+
+  async deleteCompany(id: string) {
+    return this.request(`/companies/${id}`, { method: 'DELETE' });
+  }
+
+  // Entities
+  async getEntities(filters?: { type?: string; status?: string }) {
+    const params = new URLSearchParams(filters as any).toString();
+    return this.request<any[]>(`/entities${params ? `?${params}` : ''}`);
+  }
+
+  async createEntity(entityData: any) {
+    return this.request<any>('/entities', { method: 'POST', body: JSON.stringify(entityData) });
+  }
+
+  async updateEntity(id: string, entityData: any) {
+    return this.request<any>(`/entities/${id}`, { method: 'PUT', body: JSON.stringify(entityData) });
+  }
+
+  async deleteEntity(id: string) {
+    return this.request(`/entities/${id}`, { method: 'DELETE' });
+  }
+
+  // Projects
+  async getProjects(filters?: { companyId?: string; status?: string; search?: string }) {
+    const params = new URLSearchParams(filters as any).toString();
+    return this.request<any[]>(`/projects${params ? `?${params}` : ''}`);
+  }
+
+  async getProject(id: string) {
+    return this.request<any>(`/projects/${id}`);
+  }
+
+  async createProject(projectData: any) {
+    return this.request<any>('/projects', { method: 'POST', body: JSON.stringify(projectData) });
+  }
+
+  async updateProject(id: string, projectData: any) {
+    return this.request<any>(`/projects/${id}`, { method: 'PUT', body: JSON.stringify(projectData) });
+  }
+
+  async deleteProject(id: string) {
+    return this.request(`/projects/${id}`, { method: 'DELETE' });
+  }
+
+  // Contracts
+  async getContracts(filters?: { projectId?: string; type?: string; status?: string }) {
+    const params = new URLSearchParams(filters as any).toString();
+    return this.request<any[]>(`/contracts${params ? `?${params}` : ''}`);
+  }
+
+  async createContract(contractData: any) {
+    return this.request<any>('/contracts', { method: 'POST', body: JSON.stringify(contractData) });
+  }
+
+  async updateContract(id: string, contractData: any) {
+    return this.request<any>(`/contracts/${id}`, { method: 'PUT', body: JSON.stringify(contractData) });
+  }
+
+  async deleteContract(id: string) {
+    return this.request(`/contracts/${id}`, { method: 'DELETE' });
+  }
+
+  // Transactions
+  async getTransactions(filters?: { projectId?: string; contractId?: string; type?: string }) {
+    const params = new URLSearchParams(filters as any).toString();
+    return this.request<any[]>(`/transactions${params ? `?${params}` : ''}`);
+  }
+
+  async createTransaction(transactionData: any) {
+    return this.request<any>('/transactions', { method: 'POST', body: JSON.stringify(transactionData) });
+  }
+
+  async updateTransaction(id: string, transactionData: any) {
+    return this.request<any>(`/transactions/${id}`, { method: 'PUT', body: JSON.stringify(transactionData) });
+  }
+
+  async deleteTransaction(id: string) {
+    return this.request(`/transactions/${id}`, { method: 'DELETE' });
+  }
+
+  // Documents
+  async getDocuments(filters?: { category?: string; relatedId?: string }) {
+    const params = new URLSearchParams(filters as any).toString();
+    return this.request<any[]>(`/documents${params ? `?${params}` : ''}`);
+  }
+
+  async uploadDocument(file: File, metadata: { name?: string; category?: string; relatedId?: string }) {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (metadata.name) formData.append('name', metadata.name);
+    if (metadata.category) formData.append('category', metadata.category);
+    if (metadata.relatedId) formData.append('relatedId', metadata.relatedId);
+
+    const token = this.getToken();
+    const headers: HeadersInit = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(`${API_BASE_URL}/documents`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Bir hata oluştu' }));
+      throw new Error(error.error || `HTTP ${response.status}`);
+    }
+
+    return response.json();
+  }
+
+  async deleteDocument(id: string) {
+    return this.request(`/documents/${id}`, { method: 'DELETE' });
+  }
+
+  // File Upload
+  async uploadFile(formData: FormData): Promise<string> {
+    const token = this.getToken();
+    const headers: HeadersInit = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(`${API_BASE_URL}/uploads`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Bir hata oluştu' }));
+      throw new Error(error.error || `HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.url || data.path;
+  }
+
+  // Get all files from uploads directory
+  async getAllFiles() {
+    return this.request<any[]>('/documents/all-files');
+  }
+}
+
+export const apiService = new ApiService();
+

@@ -1,0 +1,11 @@
+# .gitignore for Backend
+node_modules/
+dist/
+uploads/
+*.db
+*.db-journal
+.env
+.env.local
+.DS_Store
+*.log
+

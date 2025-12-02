@@ -1,0 +1,187 @@
+// Prisma Schema - Veritabanı Modelleri
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  title     String?
+  roleId    String
+  avatar    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  role      Role     @relation(fields: [roleId], references: [id])
+  projects  Project[]
+  transactions Transaction[]
+  documents Document[]
+
+  @@index([email])
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String
+  permissions Json     @default("[]") // PostgreSQL JSON desteği
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users User[]
+}
+
+model Company {
+  id           String   @id @default(cuid())
+  name         String   @unique
+  taxNumber    String   @unique
+  baseCurrency String   // Currency enum
+  address      String?
+  phone        String?
+  email        String?
+  website      String?
+  logoColor    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  projects  Project[]
+  contracts Contract[]
+}
+
+model Entity {
+  id        String   @id @default(cuid())
+  name      String
+  type      String   // EntityType enum
+  taxOffice String?
+  taxNumber String?
+  email     String?
+  phone     String?
+  address   String?
+  iban      String?
+  bankName  String?
+  status    String   @default("active") // "active" | "passive"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  projects  Project[]
+  contracts Contract[]
+  transactions Transaction[]
+
+  @@index([type, status])
+}
+
+model Project {
+  id                String   @id @default(cuid())
+  code              String   @unique
+  name              String
+  description       String?
+  companyId         String
+  customerId        String?
+  managerId         String?
+  agreementCurrency String   // Currency enum
+  budget            Float    @default(0)
+  startDate         DateTime
+  endDate           DateTime?
+  status            String   @default("active") // ProjectStatus enum
+  priority          String   @default("medium") // ProjectPriority enum
+  location          String?
+  tags              Json     @default("[]") // PostgreSQL JSON desteği
+  progress          Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  company   Company   @relation(fields: [companyId], references: [id])
+  customer  Entity?   @relation(fields: [customerId], references: [id])
+  manager   User?     @relation(fields: [managerId], references: [id])
+  contracts Contract[]
+  transactions Transaction[]
+  documents Document[]
+
+  @@index([companyId, status])
+}
+
+model Contract {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  type        String   // ContractType enum
+  status      String   @default("draft") // ContractStatus enum
+  projectId   String
+  companyId   String
+  entityId    String
+  startDate   DateTime
+  endDate     DateTime
+  amount      Float    @default(0) // KDV hariç tutar
+  currency    String   // Currency enum
+  paymentTerms String?
+  description String?
+  attachments Json     @default("[]") // PostgreSQL JSON desteği
+  isVatIncluded Boolean @default(false) // KDV dahil mi? (Varsayılan: KDV hariç)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project     Project      @relation(fields: [projectId], references: [id])
+  company     Company      @relation(fields: [companyId], references: [id])
+  entity      Entity       @relation(fields: [entityId], references: [id])
+  transactions Transaction[]
+
+  @@index([projectId, status])
+}
+
+model Transaction {
+  id            String   @id @default(cuid())
+  projectId     String
+  type          String   // "income" | "expense"
+  amount        Float    // KDV hariç tutar
+  currency      String   // Currency enum
+  exchangeRate  Float
+  date          DateTime
+  description   String
+  category      String
+  invoiceNumber String?
+  contractId    String?
+  taxes         Json?    // PostgreSQL JSON desteği
+  totalAmount   Float?
+  documentUrl   String?
+  isVatIncluded Boolean  @default(false) // KDV dahil mi?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  project   Project  @relation(fields: [projectId], references: [id])
+  contract  Contract? @relation(fields: [contractId], references: [id])
+  entity    Entity?  @relation(fields: [entityId], references: [id])
+  uploader  User     @relation(fields: [uploaderId], references: [id])
+
+  entityId  String?
+  uploaderId String
+
+  @@index([projectId, date])
+  @@index([contractId])
+}
+
+model Document {
+  id        String   @id @default(cuid())
+  name      String
+  type      String   // "pdf" | "image" | "spreadsheet" | "word" | "other"
+  size      String
+  uploadDate DateTime @default(now())
+  uploaderId String
+  category  String   // "contract" | "invoice" | "project" | "personnel" | "general"
+  relatedId String?  // Proje, Sözleşme veya Personel ID'si
+  url       String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  uploader User @relation(fields: [uploaderId], references: [id])
+  project  Project? @relation(fields: [relatedId], references: [id])
+
+  @@index([category, relatedId])
+}
+
