@@ -42,19 +42,39 @@ router.get('/:id', authenticateToken, async (req, res) => {
 // Create contract
 router.post('/', authenticateToken, async (req, res) => {
   try {
+    // Zorunlu alanları kontrol et
+    if (!req.body.code || !req.body.name || !req.body.projectId || !req.body.companyId || !req.body.entityId) {
+      return res.status(400).json({ error: 'Kod, ad, proje, şirket ve cari seçimi zorunludur' });
+    }
+
+    if (!req.body.startDate || !req.body.endDate) {
+      return res.status(400).json({ error: 'Başlangıç ve bitiş tarihi zorunludur' });
+    }
+
     const data: any = {
-      ...req.body,
-      attachments: req.body.attachments && Array.isArray(req.body.attachments) && req.body.attachments.length > 0 ? req.body.attachments : [],
+      code: req.body.code.trim(),
+      name: req.body.name.trim(),
+      type: req.body.type || 'subcontractor_agreement',
+      status: req.body.status || 'draft',
+      projectId: req.body.projectId,
+      companyId: req.body.companyId,
+      entityId: req.body.entityId,
       startDate: new Date(req.body.startDate),
       endDate: new Date(req.body.endDate),
+      amount: req.body.amount ? Number(req.body.amount) : 0,
+      currency: req.body.currency || 'TRY',
+      isVatIncluded: req.body.isVatIncluded !== undefined ? Boolean(req.body.isVatIncluded) : false,
+      attachments: req.body.attachments && Array.isArray(req.body.attachments) && req.body.attachments.length > 0 ? req.body.attachments : [],
       // Boş string'leri null'a çevir
-      paymentTerms: req.body.paymentTerms && req.body.paymentTerms.trim() !== '' ? req.body.paymentTerms : null,
-      description: req.body.description && req.body.description.trim() !== '' ? req.body.description : null
+      paymentTerms: req.body.paymentTerms && typeof req.body.paymentTerms === 'string' && req.body.paymentTerms.trim() !== '' ? req.body.paymentTerms.trim() : null,
+      description: req.body.description && typeof req.body.description === 'string' && req.body.description.trim() !== '' ? req.body.description.trim() : null
     };
+
     const contract = await prisma.contract.create({ data });
     res.json(contract);
   } catch (error: any) {
-    res.status(400).json({ error: error.message });
+    console.error('Contract create hatası:', error);
+    res.status(400).json({ error: error.message || 'Sözleşme oluşturulamadı' });
   }
 });
 

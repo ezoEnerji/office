@@ -81,16 +81,34 @@ export const ContractManagement: React.FC<ContractManagementProps> = ({
   };
 
   const handleSave = async () => {
-    if (!formData.name || !formData.projectId || !formData.entityId) {
-      alert("Sözleşme adı, proje ve cari seçimi zorunludur.");
+    if (!formData.name || !formData.projectId || !formData.entityId || !formData.companyId) {
+      alert("Sözleşme adı, proje, şirket ve cari seçimi zorunludur.");
+      return;
+    }
+
+    if (!formData.startDate || !formData.endDate) {
+      alert("Başlangıç ve bitiş tarihi zorunludur.");
+      return;
+    }
+
+    if (!formData.code || formData.code.trim() === '') {
+      alert("Sözleşme kodu zorunludur.");
       return;
     }
 
     try {
+      const contractData = {
+        ...formData,
+        code: formData.code.trim(),
+        name: formData.name.trim(),
+        paymentTerms: formData.paymentTerms && formData.paymentTerms.trim() !== '' ? formData.paymentTerms.trim() : null,
+        description: formData.description && formData.description.trim() !== '' ? formData.description.trim() : null
+      };
+
       if (editingContract) {
-        await apiService.updateContract(editingContract.id, formData);
+        await apiService.updateContract(editingContract.id, contractData);
       } else {
-        await apiService.createContract(formData);
+        await apiService.createContract(contractData);
       }
       setIsModalOpen(false);
       if (onRefresh) onRefresh();

@@ -48,21 +48,28 @@ router.get('/:id', authenticateToken, async (req, res) => {
 router.post('/', authenticateToken, async (req, res) => {
   try {
     const userId = (req as any).user?.userId;
-    const data = {
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'Kullanıcı kimliği bulunamadı' });
+    }
+
+    const data: any = {
       ...req.body,
-      taxes: req.body.taxes && req.body.taxes.length > 0 ? req.body.taxes : null,
+      taxes: req.body.taxes && Array.isArray(req.body.taxes) && req.body.taxes.length > 0 ? req.body.taxes : null,
       date: new Date(req.body.date),
-      uploaderId: userId || req.body.uploaderId,
+      uploaderId: userId,
       // Boş string'leri null'a çevir
-      contractId: req.body.contractId && req.body.contractId.trim() !== '' ? req.body.contractId : null,
-      invoiceNumber: req.body.invoiceNumber && req.body.invoiceNumber.trim() !== '' ? req.body.invoiceNumber : null,
-      documentUrl: req.body.documentUrl && req.body.documentUrl.trim() !== '' ? req.body.documentUrl : null,
-      entityId: req.body.entityId && req.body.entityId.trim() !== '' ? req.body.entityId : null
+      contractId: req.body.contractId && typeof req.body.contractId === 'string' && req.body.contractId.trim() !== '' ? req.body.contractId : null,
+      invoiceNumber: req.body.invoiceNumber && typeof req.body.invoiceNumber === 'string' && req.body.invoiceNumber.trim() !== '' ? req.body.invoiceNumber : null,
+      documentUrl: req.body.documentUrl && typeof req.body.documentUrl === 'string' && req.body.documentUrl.trim() !== '' ? req.body.documentUrl : null,
+      entityId: req.body.entityId && typeof req.body.entityId === 'string' && req.body.entityId.trim() !== '' ? req.body.entityId : null
     };
+    
     const transaction = await prisma.transaction.create({ data });
     res.json(transaction);
   } catch (error: any) {
-    res.status(400).json({ error: error.message });
+    console.error('Transaction create hatası:', error);
+    res.status(400).json({ error: error.message || 'İşlem oluşturulamadı' });
   }
 });
 
