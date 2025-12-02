@@ -108,14 +108,16 @@ VITE_API_URL=http://localhost:3001/api
 
 ## 🚢 Production Deployment
 
-Detaylı deployment rehberi için `DEPLOYMENT.md` dosyasına bakın.
+Sunucuya kurulum için `install.sh` scriptini kullanın:
 
-**Hızlı Özet:**
-1. Backend VM: Node.js + PM2 + PostgreSQL
-2. Frontend VM: Nginx + React build
-3. CORS yapılandırması gerekli
-4. SSL sertifikası önerilir (Let's Encrypt)
+```bash
+chmod +x install.sh
+sudo ./install.sh
+```
 
-**Google Cloud VM Deployment:**
-- PostgreSQL VM: `DEPLOYMENT.md` dosyasındaki "VM 1: PostgreSQL Veritabanı Sunucusu" bölümüne bakın
-- Uygulama VM: `DEPLOYMENT.md` dosyasındaki "VM 2: Uygulama Sunucusu" bölümüne bakın
+Script otomatik olarak:
+- Tüm bağımlılıkları kurar
+- Backend ve frontend'i build eder
+- PM2 ile backend'i başlatır
+- Nginx yapılandırmasını yapar
+- Tüm izinleri ayarlar
