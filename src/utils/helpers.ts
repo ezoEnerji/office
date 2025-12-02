@@ -20,9 +20,11 @@ export const fetchTCMBRate = async (date: string, from: Currency, to: Currency):
     // Production'da mevcut protokolü kullan (HTTPS/HTTP), development'ta localhost
     const getApiUrl = () => {
       const envUrl = import.meta.env.VITE_API_URL;
-      if (envUrl) return envUrl;
+      if (envUrl) {
+        return envUrl.endsWith('/') ? envUrl.slice(0, -1) : envUrl;
+      }
       
-      if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+      if (typeof window !== 'undefined') {
         return `${window.location.protocol}//${window.location.host}/api`;
       }
       

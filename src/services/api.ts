@@ -3,15 +3,17 @@
 const getApiBaseUrl = () => {
   const envUrl = import.meta.env.VITE_API_URL;
   if (envUrl) {
-    return envUrl;
+    // Environment variable varsa onu kullan (trailing slash kontrolü)
+    return envUrl.endsWith('/') ? envUrl.slice(0, -1) : envUrl;
   }
   
-  // Production'da (HTTPS üzerindeyse) mevcut domain'i HTTPS ile kullan
-  if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+  // Production'da (browser'da çalışıyorsa) mevcut domain'i kullan
+  if (typeof window !== 'undefined') {
+    // Nginx reverse proxy üzerinden /api path'i kullan
     return `${window.location.protocol}//${window.location.host}/api`;
   }
   
-  // Development veya HTTP
+  // Development veya SSR
   return 'http://localhost:3001/api';
 };
 
