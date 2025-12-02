@@ -126,6 +126,7 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
 
   // Kur değişikliği için manuel state
   const [manualExchangeRate, setManualExchangeRate] = useState<number>(1);
+  const [isLoadingRate, setIsLoadingRate] = useState<boolean>(false);
 
   // Project Form State
   const initialProjectForm: Omit<Project, 'id'> = {
@@ -147,33 +148,40 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
   const [projectFormData, setProjectFormData] = useState(initialProjectForm);
   const [formTagsInput, setFormTagsInput] = useState('');
 
+  // Kur güncelleme fonksiyonu
+  const updateExchangeRate = async (showLoading = true) => {
+    if (!selectedProject || !newTrans.currency || !newTrans.date) return;
+    
+    // Eğer para birimleri aynıysa kur her zaman 1'dir.
+    if (newTrans.currency === selectedProject.agreementCurrency) {
+      setManualExchangeRate(1);
+      return;
+    }
+
+    if (showLoading) setIsLoadingRate(true);
+
+    // Varsayılan (sabit) kur ile başlat
+    let rate = getCrossRate(newTrans.currency as Currency, selectedProject.agreementCurrency);
+    setManualExchangeRate(Number(rate.toFixed(4)));
+
+    // TCMB'den gerçek kuru çek
+    try {
+      const tcmbRate = await fetchTCMBRate(newTrans.date, newTrans.currency as Currency, selectedProject.agreementCurrency as Currency);
+      if (tcmbRate > 0) {
+        setManualExchangeRate(Number(tcmbRate.toFixed(4)));
+      }
+    } catch (e) {
+      console.warn("TCMB kur çekilemedi, varsayılan kur kullanılıyor.");
+    } finally {
+      if (showLoading) setIsLoadingRate(false);
+    }
+  };
+
   // Transaction Modal açıldığında, para birimi VEYA tarih değiştiğinde kuru güncelle
   useEffect(() => {
-    const updateRate = async () => {
-      if (isTransactionModalOpen && selectedProject && newTrans.currency && newTrans.date) {
-        // Eğer para birimleri aynıysa kur her zaman 1'dir.
-        if (newTrans.currency === selectedProject.agreementCurrency) {
-          setManualExchangeRate(1);
-          return;
-        }
-
-        // Varsayılan (sabit) kur ile başlat, kullanıcı beklerken boş kalmasın
-        let rate = getCrossRate(newTrans.currency as Currency, selectedProject.agreementCurrency);
-        setManualExchangeRate(Number(rate.toFixed(4)));
-
-        // TCMB'den gerçek kuru çek
-        try {
-          const tcmbRate = await fetchTCMBRate(newTrans.date, newTrans.currency as Currency, selectedProject.agreementCurrency as Currency);
-          if (tcmbRate > 0) {
-            setManualExchangeRate(Number(tcmbRate.toFixed(4)));
-          }
-        } catch (e) {
-          console.warn("TCMB kur çekilemedi, varsayılan kur kullanılıyor.");
-        }
-      }
-    };
-    
-    updateRate();
+    if (isTransactionModalOpen && selectedProject && newTrans.currency && newTrans.date) {
+      updateExchangeRate(false); // İlk yüklemede loading gösterme
+    }
   }, [isTransactionModalOpen, newTrans.currency, newTrans.date, selectedProject]);
 
   const handleAddTransaction = async () => {
@@ -924,7 +932,7 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                         type="number"
                         className="w-full p-2 border rounded-lg font-mono text-lg font-bold text-slate-700"
                         placeholder="0.00"
-                        value={newTrans.amount}
+                        value={newTrans.amount || ''}
                         onChange={e => setNewTrans({...newTrans, amount: Number(e.target.value)})}
                       />
                    </label>
@@ -939,15 +947,55 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                        </select>
                    </label>
                    <label className="col-span-1">
-                      <span className="text-xs text-slate-500 block mb-1">Kur</span>
-                      <input 
-                        type="number"
-                        className={`w-full p-2.5 border rounded-lg font-mono text-sm font-bold outline-none ${newTrans.currency === selectedProject?.agreementCurrency ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-white text-blue-600 focus:border-blue-500'}`}
-                        value={manualExchangeRate}
-                        onChange={e => setManualExchangeRate(Number(e.target.value))}
-                        disabled={newTrans.currency === selectedProject?.agreementCurrency}
-                        step="0.0001"
-                      />
+                      <span className="text-xs text-slate-500 block mb-1 flex items-center justify-between">
+                        <span>Kur ({selectedProject?.agreementCurrency})</span>
+                        {newTrans.currency !== selectedProject?.agreementCurrency && (
+                          <button
+                            type="button"
+                            onClick={() => updateExchangeRate(true)}
+                            disabled={isLoadingRate}
+                            className="text-xs text-blue-600 hover:text-blue-800 disabled:opacity-50 flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-blue-50 transition"
+                            title="Kuru TCMB'den yenile"
+                          >
+                            {isLoadingRate ? (
+                              <RefreshCw size={12} className="animate-spin" />
+                            ) : (
+                              <RefreshCw size={12} />
+                            )}
+                          </button>
+                        )}
+                      </span>
+                      <div className="relative">
+                        {newTrans.currency === selectedProject?.agreementCurrency ? (
+                          <div className="w-full p-2.5 border rounded-lg bg-slate-100 text-slate-400 cursor-not-allowed font-mono text-sm">
+                            1.0000
+                          </div>
+                        ) : (
+                          <>
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 relative">
+                                <input 
+                                  type="number"
+                                  className="w-full p-2.5 border rounded-lg font-mono text-sm font-bold outline-none bg-white text-blue-600 focus:border-blue-500"
+                                  value={manualExchangeRate}
+                                  onChange={e => {
+                                    const val = Number(e.target.value);
+                                    if (val > 0) setManualExchangeRate(val);
+                                  }}
+                                  step="0.0001"
+                                  min="0.0001"
+                                  placeholder="0.0000"
+                                />
+                              </div>
+                            </div>
+                            <div className="text-[10px] text-slate-500 mt-1.5 flex items-center gap-1">
+                              <span className="font-medium">1 {newTrans.currency} =</span>
+                              <span className="font-bold text-blue-600">{manualExchangeRate.toFixed(4)}</span>
+                              <span className="font-medium">{selectedProject?.agreementCurrency}</span>
+                            </div>
+                          </>
+                        )}
+                      </div>
                    </label>
                    <label className="col-span-1">
                       <span className="text-xs text-slate-500 block mb-1">İşlem Türü</span>
@@ -961,6 +1009,23 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                       </select>
                    </label>
                 </div>
+
+                {/* Hesaplanan Sonuç */}
+                {newTrans.currency !== selectedProject?.agreementCurrency && newTrans.amount && newTrans.amount > 0 && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-slate-600">Hesaplanan Tutar:</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-500 text-xs font-mono">
+                          {formatCurrency(newTrans.amount || 0, newTrans.currency as Currency)} × {manualExchangeRate.toFixed(4)} =
+                        </span>
+                        <span className="font-bold text-blue-700 font-mono text-lg">
+                          {formatCurrency((newTrans.amount || 0) * manualExchangeRate, selectedProject?.agreementCurrency as Currency)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Tarih ve Kategori */}
                 <div className="grid grid-cols-2 gap-3">

@@ -42,11 +42,14 @@ router.get('/:id', authenticateToken, async (req, res) => {
 // Create contract
 router.post('/', authenticateToken, async (req, res) => {
   try {
-    const data = {
+    const data: any = {
       ...req.body,
-      attachments: req.body.attachments || [],
+      attachments: req.body.attachments && Array.isArray(req.body.attachments) && req.body.attachments.length > 0 ? req.body.attachments : [],
       startDate: new Date(req.body.startDate),
-      endDate: new Date(req.body.endDate)
+      endDate: new Date(req.body.endDate),
+      // Boş string'leri null'a çevir
+      paymentTerms: req.body.paymentTerms && req.body.paymentTerms.trim() !== '' ? req.body.paymentTerms : null,
+      description: req.body.description && req.body.description.trim() !== '' ? req.body.description : null
     };
     const contract = await prisma.contract.create({ data });
     res.json(contract);
@@ -58,12 +61,23 @@ router.post('/', authenticateToken, async (req, res) => {
 // Update contract
 router.put('/:id', authenticateToken, async (req, res) => {
   try {
-    const data = {
+    const data: any = {
       ...req.body,
-      attachments: req.body.attachments ? req.body.attachments : undefined,
+      attachments: req.body.attachments && Array.isArray(req.body.attachments) && req.body.attachments.length > 0 ? req.body.attachments : undefined,
       startDate: req.body.startDate ? new Date(req.body.startDate) : undefined,
-      endDate: req.body.endDate ? new Date(req.body.endDate) : undefined
+      endDate: req.body.endDate ? new Date(req.body.endDate) : undefined,
+      // Boş string'leri null'a çevir
+      paymentTerms: req.body.paymentTerms && req.body.paymentTerms.trim() !== '' ? req.body.paymentTerms : null,
+      description: req.body.description && req.body.description.trim() !== '' ? req.body.description : null
     };
+    
+    // undefined değerleri kaldır (Prisma bunları güncellemez)
+    Object.keys(data).forEach(key => {
+      if (data[key] === undefined) {
+        delete data[key];
+      }
+    });
+    
     const contract = await prisma.contract.update({
       where: { id: req.params.id },
       data
