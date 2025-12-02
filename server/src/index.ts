@@ -2,6 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
+import fs from 'fs';
+import path from 'path';
 
 // Routes
 import authRoutes from './routes/auth.js';
@@ -17,6 +19,15 @@ import uploadRoutes from './routes/uploads.js';
 import exchangeRoutes from './routes/exchange.js';
 
 dotenv.config();
+
+// Uploads klasörlerini oluştur
+const uploadsDirs = ['uploads', 'uploads/avatars', 'uploads/documents', 'uploads/general'];
+uploadsDirs.forEach(dir => {
+  const dirPath = path.join(process.cwd(), dir);
+  if (!fs.existsSync(dirPath)) {
+    fs.mkdirSync(dirPath, { recursive: true });
+  }
+});
 
 const app = express();
 const prisma = new PrismaClient();

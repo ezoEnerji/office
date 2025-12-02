@@ -106,7 +106,7 @@ export const ContractManagement: React.FC<ContractManagementProps> = ({
         try {
           const formDataObj = new FormData();
           formDataObj.append('file', file);
-          const uploadedUrl = await apiService.uploadFile(formDataObj);
+          const uploadedUrl = await apiService.uploadFile(formDataObj, 'contract');
           uploadedAttachments.push(uploadedUrl);
         } catch (error) {
           console.error('Dosya yükleme hatası:', error);

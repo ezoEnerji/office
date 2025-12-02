@@ -148,7 +148,7 @@ export const RoleManagement: React.FC<RoleManagementProps> = ({
         const formData = new FormData();
         formData.append('file', avatarFile);
         formData.append('type', 'avatar');
-        avatarUrl = await apiService.uploadFile(formData);
+        avatarUrl = await apiService.uploadFile(formData, 'avatar');
       }
 
       if (editingUser) {

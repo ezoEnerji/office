@@ -251,14 +251,14 @@ class ApiService {
   }
 
   // File Upload
-  async uploadFile(formData: FormData): Promise<string> {
+  async uploadFile(formData: FormData, type: 'avatar' | 'contract' | 'document' | 'general' = 'general'): Promise<string> {
     const token = this.getToken();
     const headers: HeadersInit = {};
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = await fetch(`${API_BASE_URL}/uploads`, {
+    const response = await fetch(`${API_BASE_URL}/uploads?type=${type}`, {
       method: 'POST',
       headers,
       body: formData,
