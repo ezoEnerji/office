@@ -50,9 +50,14 @@ router.post('/', authenticateToken, async (req, res) => {
     const userId = (req as any).user?.userId;
     const data = {
       ...req.body,
-      taxes: req.body.taxes ? req.body.taxes : null,
+      taxes: req.body.taxes && req.body.taxes.length > 0 ? req.body.taxes : null,
       date: new Date(req.body.date),
-      uploaderId: userId || req.body.uploaderId
+      uploaderId: userId || req.body.uploaderId,
+      // Boş string'leri null'a çevir
+      contractId: req.body.contractId && req.body.contractId.trim() !== '' ? req.body.contractId : null,
+      invoiceNumber: req.body.invoiceNumber && req.body.invoiceNumber.trim() !== '' ? req.body.invoiceNumber : null,
+      documentUrl: req.body.documentUrl && req.body.documentUrl.trim() !== '' ? req.body.documentUrl : null,
+      entityId: req.body.entityId && req.body.entityId.trim() !== '' ? req.body.entityId : null
     };
     const transaction = await prisma.transaction.create({ data });
     res.json(transaction);
@@ -64,11 +69,24 @@ router.post('/', authenticateToken, async (req, res) => {
 // Update transaction
 router.put('/:id', authenticateToken, async (req, res) => {
   try {
-    const data = {
+    const data: any = {
       ...req.body,
-      taxes: req.body.taxes ? req.body.taxes : undefined,
-      date: req.body.date ? new Date(req.body.date) : undefined
+      taxes: req.body.taxes && req.body.taxes.length > 0 ? req.body.taxes : null,
+      date: req.body.date ? new Date(req.body.date) : undefined,
+      // Boş string'leri null'a çevir
+      contractId: req.body.contractId && req.body.contractId.trim() !== '' ? req.body.contractId : null,
+      invoiceNumber: req.body.invoiceNumber && req.body.invoiceNumber.trim() !== '' ? req.body.invoiceNumber : null,
+      documentUrl: req.body.documentUrl && req.body.documentUrl.trim() !== '' ? req.body.documentUrl : null,
+      entityId: req.body.entityId && req.body.entityId.trim() !== '' ? req.body.entityId : null
     };
+    
+    // undefined değerleri kaldır (Prisma bunları güncellemez)
+    Object.keys(data).forEach(key => {
+      if (data[key] === undefined) {
+        delete data[key];
+      }
+    });
+    
     const transaction = await prisma.transaction.update({
       where: { id: req.params.id },
       data

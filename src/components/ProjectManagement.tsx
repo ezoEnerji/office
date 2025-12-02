@@ -189,10 +189,10 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
         description: newTrans.description || '',
         category: newTrans.category || 'Genel',
         exchangeRate: manualExchangeRate,
-        invoiceNumber: newTrans.invoiceNumber,
-        contractId: newTrans.contractId,
-        documentUrl: newTrans.documentUrl,
-        taxes: newTrans.taxes,
+        invoiceNumber: newTrans.invoiceNumber && newTrans.invoiceNumber.trim() !== '' ? newTrans.invoiceNumber : null,
+        contractId: newTrans.contractId && newTrans.contractId.trim() !== '' ? newTrans.contractId : null,
+        documentUrl: newTrans.documentUrl && newTrans.documentUrl.trim() !== '' ? newTrans.documentUrl : null,
+        taxes: newTrans.taxes && newTrans.taxes.length > 0 ? newTrans.taxes : null,
         isVatIncluded: newTrans.isVatIncluded || false,
         totalAmount: newTrans.isVatIncluded 
           ? (newTrans.amount || 0) // KDV dahil ise tutar zaten toplam
