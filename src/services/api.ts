@@ -1,5 +1,21 @@
 // API Service Layer - Frontend için
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+// Production'da mevcut protokolü kullan (HTTPS/HTTP), development'ta localhost
+const getApiBaseUrl = () => {
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (envUrl) {
+    return envUrl;
+  }
+  
+  // Production'da (HTTPS üzerindeyse) mevcut domain'i HTTPS ile kullan
+  if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+    return `${window.location.protocol}//${window.location.host}/api`;
+  }
+  
+  // Development veya HTTP
+  return 'http://localhost:3001/api';
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 class ApiService {
   private token: string | null = null;

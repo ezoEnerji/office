@@ -17,7 +17,19 @@ export const fetchTCMBRate = async (date: string, from: Currency, to: Currency):
 
   try {
     // Backend API üzerinden kur çek (public endpoint, token gerekmez)
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+    // Production'da mevcut protokolü kullan (HTTPS/HTTP), development'ta localhost
+    const getApiUrl = () => {
+      const envUrl = import.meta.env.VITE_API_URL;
+      if (envUrl) return envUrl;
+      
+      if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+        return `${window.location.protocol}//${window.location.host}/api`;
+      }
+      
+      return 'http://localhost:3001/api';
+    };
+    
+    const apiUrl = getApiUrl();
     const response = await fetch(`${apiUrl}/exchange/tcmb?date=${encodeURIComponent(date)}&from=${from}&to=${to}`, {
       method: 'GET',
       headers: {
