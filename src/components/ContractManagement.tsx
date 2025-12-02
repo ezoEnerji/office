@@ -64,18 +64,21 @@ export const ContractManagement: React.FC<ContractManagementProps> = ({
   };
 
   const [formData, setFormData] = useState(initialForm);
+  const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
 
   // --- CRUD Operations ---
   const openModal = (contract?: Contract) => {
     if (contract) {
       setEditingContract(contract);
       setFormData(contract);
+      setAttachmentFiles([]); // Edit modunda yeni dosya yok
     } else {
       setEditingContract(null);
       setFormData({
         ...initialForm,
         code: `CNT-${new Date().getFullYear()}-${String(contracts.length + 1).padStart(3, '0')}`
       });
+      setAttachmentFiles([]); // Yeni contract'ta dosya yok
     }
     setIsModalOpen(true);
   };
@@ -97,10 +100,25 @@ export const ContractManagement: React.FC<ContractManagementProps> = ({
     }
 
     try {
+      // Dosyaları yükle
+      const uploadedAttachments: string[] = [];
+      for (const file of attachmentFiles) {
+        try {
+          const formDataObj = new FormData();
+          formDataObj.append('file', file);
+          const uploadedUrl = await apiService.uploadFile(formDataObj);
+          uploadedAttachments.push(uploadedUrl);
+        } catch (error) {
+          console.error('Dosya yükleme hatası:', error);
+          // Dosya yüklenemezse devam et, sadece o dosyayı atla
+        }
+      }
+
       const contractData = {
         ...formData,
         code: formData.code.trim(),
         name: formData.name.trim(),
+        attachments: uploadedAttachments, // Yüklenen dosya URL'leri
         paymentTerms: formData.paymentTerms && formData.paymentTerms.trim() !== '' ? formData.paymentTerms.trim() : null,
         description: formData.description && formData.description.trim() !== '' ? formData.description.trim() : null
       };
@@ -110,7 +128,9 @@ export const ContractManagement: React.FC<ContractManagementProps> = ({
       } else {
         await apiService.createContract(contractData);
       }
+      
       setIsModalOpen(false);
+      setAttachmentFiles([]); // Dosyaları temizle
       if (onRefresh) onRefresh();
     } catch (error: any) {
       alert(error.message || 'Kayıt sırasında bir hata oluştu');
@@ -504,11 +524,7 @@ export const ContractManagement: React.FC<ContractManagementProps> = ({
                     onChange={(e) => {
                       if (e.target.files && e.target.files[0]) {
                         const file = e.target.files[0];
-                        const fakeUrl = URL.createObjectURL(file);
-                        setFormData({
-                          ...formData, 
-                          attachments: [...formData.attachments, fakeUrl]
-                        });
+                        setAttachmentFiles([...attachmentFiles, file]);
                       }
                     }}
                   />
@@ -519,16 +535,17 @@ export const ContractManagement: React.FC<ContractManagementProps> = ({
                   <p className="text-[10px] text-slate-400 mt-1">PDF (Maks 10MB)</p>
                 </div>
 
-                {formData.attachments.length > 0 && (
+                {attachmentFiles.length > 0 && (
                   <div className="space-y-1.5 mt-2">
-                    {formData.attachments.map((file, i) => (
+                    {attachmentFiles.map((file, i) => (
                       <div key={i} className="flex items-center justify-between text-xs bg-white p-2 rounded border border-slate-200 shadow-sm">
                         <div className="flex items-center gap-2">
                           <FileText size={14} className="text-red-500" />
-                          <span className="font-medium text-slate-600">Sözleşme_Ek_{i+1}.pdf</span>
+                          <span className="font-medium text-slate-600">{file.name}</span>
+                          <span className="text-slate-400">({(file.size / 1024).toFixed(1)} KB)</span>
                         </div>
-                        <button 
-                          onClick={() => setFormData({...formData, attachments: formData.attachments.filter((_, idx) => idx !== i)})}
+                        <button
+                          onClick={() => setAttachmentFiles(attachmentFiles.filter((_, idx) => idx !== i))}
                           className="text-slate-400 hover:text-red-500 transition"
                         >
                           <X size={14} />

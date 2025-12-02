@@ -64,7 +64,9 @@ router.post('/', authenticateToken, async (req, res) => {
       amount: req.body.amount ? Number(req.body.amount) : 0,
       currency: req.body.currency || 'TRY',
       isVatIncluded: req.body.isVatIncluded !== undefined ? Boolean(req.body.isVatIncluded) : false,
-      attachments: req.body.attachments && Array.isArray(req.body.attachments) && req.body.attachments.length > 0 ? req.body.attachments : [],
+      attachments: req.body.attachments && Array.isArray(req.body.attachments) && req.body.attachments.length > 0 
+        ? req.body.attachments.filter((url: string) => url && typeof url === 'string' && !url.startsWith('blob:')) 
+        : [],
       // Boş string'leri null'a çevir
       paymentTerms: req.body.paymentTerms && typeof req.body.paymentTerms === 'string' && req.body.paymentTerms.trim() !== '' ? req.body.paymentTerms.trim() : null,
       description: req.body.description && typeof req.body.description === 'string' && req.body.description.trim() !== '' ? req.body.description.trim() : null
