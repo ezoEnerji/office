@@ -653,7 +653,156 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
   // --- Detail View ---
 
   if (selectedProject) {
-    const projectTransactions = transactions.filter(t => t.projectId === selectedProject.id);
+    let projectTransactions = transactions.filter(t => t.projectId === selectedProject.id);
+    
+    // Sorting function
+    const handleSort = (column: string) => {
+      if (sortColumn === column) {
+        setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+      } else {
+        setSortColumn(column);
+        setSortDirection('asc');
+      }
+    };
+    
+    // Sort transactions
+    if (sortColumn) {
+      projectTransactions = [...projectTransactions].sort((a, b) => {
+        let aVal: any;
+        let bVal: any;
+        
+        switch (sortColumn) {
+          case 'date':
+            aVal = new Date(a.date).getTime();
+            bVal = new Date(b.date).getTime();
+            break;
+          case 'description':
+            aVal = a.description.toLowerCase();
+            bVal = b.description.toLowerCase();
+            break;
+          case 'category':
+            aVal = a.category.toLowerCase();
+            bVal = b.category.toLowerCase();
+            break;
+          case 'amount':
+            const aConverted = a.currency === selectedProject.agreementCurrency 
+              ? a.amount 
+              : a.currency === 'TRY' 
+                ? a.amount / a.exchangeRate 
+                : a.amount * a.exchangeRate;
+            const bConverted = b.currency === selectedProject.agreementCurrency 
+              ? b.amount 
+              : b.currency === 'TRY' 
+                ? b.amount / b.exchangeRate 
+                : b.amount * b.exchangeRate;
+            aVal = aConverted;
+            bVal = bConverted;
+            break;
+          case 'type':
+            aVal = a.type;
+            bVal = b.type;
+            break;
+          default:
+            return 0;
+        }
+        
+        if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+        if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+    
+    // Grouping function
+    const toggleGroup = (groupKey: string) => {
+      const newExpanded = new Set(expandedGroups);
+      if (newExpanded.has(groupKey)) {
+        newExpanded.delete(groupKey);
+      } else {
+        newExpanded.add(groupKey);
+      }
+      setExpandedGroups(newExpanded);
+    };
+    
+    // Group transactions
+    interface GroupedTransaction {
+      key: string;
+      label: string;
+      transactions: Transaction[];
+      total: number;
+    }
+    
+    let groupedData: GroupedTransaction[] = [];
+    let displayTransactions: (Transaction | { type: 'group', group: GroupedTransaction })[] = [];
+    
+    if (groupBy === 'none') {
+      displayTransactions = projectTransactions;
+    } else {
+      const groups = new Map<string, Transaction[]>();
+      
+      projectTransactions.forEach(t => {
+        let groupKey = '';
+        let groupLabel = '';
+        
+        if (groupBy === 'date') {
+          const date = new Date(t.date);
+          groupKey = date.toISOString().split('T')[0];
+          groupLabel = date.toLocaleDateString('tr-TR', { year: 'numeric', month: 'long', day: 'numeric' });
+        } else if (groupBy === 'category') {
+          groupKey = t.category;
+          groupLabel = t.category;
+        } else if (groupBy === 'date-category') {
+          const date = new Date(t.date);
+          const dateStr = date.toISOString().split('T')[0];
+          groupKey = `${dateStr}_${t.category}`;
+          groupLabel = `${date.toLocaleDateString('tr-TR', { year: 'numeric', month: 'long', day: 'numeric' })} - ${t.category}`;
+        }
+        
+        if (!groups.has(groupKey)) {
+          groups.set(groupKey, []);
+        }
+        groups.get(groupKey)!.push(t);
+      });
+      
+      groupedData = Array.from(groups.entries()).map(([key, trans]) => {
+        const total = trans.reduce((sum, t) => {
+          const converted = t.currency === selectedProject.agreementCurrency 
+            ? t.amount 
+            : t.currency === 'TRY' 
+              ? t.amount / t.exchangeRate 
+              : t.amount * t.exchangeRate;
+          return sum + (t.type === 'income' ? converted : -converted);
+        }, 0);
+        
+        let label = '';
+        if (groupBy === 'date') {
+          label = new Date(key).toLocaleDateString('tr-TR', { year: 'numeric', month: 'long', day: 'numeric' });
+        } else if (groupBy === 'category') {
+          label = key;
+        } else if (groupBy === 'date-category') {
+          const [dateStr, category] = key.split('_');
+          label = `${new Date(dateStr).toLocaleDateString('tr-TR', { year: 'numeric', month: 'long', day: 'numeric' })} - ${category}`;
+        }
+        
+        return {
+          key,
+          label,
+          transactions: trans,
+          total
+        };
+      }).sort((a, b) => {
+        if (groupBy === 'date' || groupBy === 'date-category') {
+          return new Date(a.key.split('_')[0]).getTime() - new Date(b.key.split('_')[0]).getTime();
+        }
+        return a.label.localeCompare(b.label, 'tr');
+      });
+      
+      groupedData.forEach(group => {
+        displayTransactions.push({ type: 'group', group });
+        if (expandedGroups.has(group.key)) {
+          displayTransactions.push(...group.transactions);
+        }
+      });
+    }
     
     const totalIncome = projectTransactions
       .filter(t => t.type === 'income')
