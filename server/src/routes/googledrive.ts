@@ -3,6 +3,7 @@ import { authenticateToken } from '../middleware/auth.js';
 import { google } from 'googleapis';
 import multer from 'multer';
 import path from 'path';
+import { Readable } from 'stream';
 
 const router = express.Router();
 
@@ -23,11 +24,25 @@ const upload = multer({
 
 // Google Drive API yapılandırması
 const getDriveClient = () => {
-  const credentials = JSON.parse(process.env.GOOGLE_DRIVE_CREDENTIALS || '{}');
-  const auth = new google.auth.GoogleAuth({
-    credentials,
-    scopes: ['https://www.googleapis.com/auth/drive']
-  });
+  if (!process.env.GOOGLE_DRIVE_CREDENTIALS) {
+    throw new Error('GOOGLE_DRIVE_CREDENTIALS environment variable is not set');
+  }
+  
+  let credentials;
+  try {
+    credentials = JSON.parse(process.env.GOOGLE_DRIVE_CREDENTIALS);
+  } catch (error) {
+    throw new Error('GOOGLE_DRIVE_CREDENTIALS is not valid JSON');
+  }
+  
+  // Service account için JWT auth kullan
+  const auth = new google.auth.JWT(
+    credentials.client_email,
+    undefined,
+    credentials.private_key,
+    ['https://www.googleapis.com/auth/drive']
+  );
+  
   return google.drive({ version: 'v3', auth });
 };
 
@@ -150,9 +165,12 @@ router.post('/upload', authenticateToken, upload.single('file'), async (req, res
       parents: [targetFolderId]
     };
 
+    // Buffer'ı stream'e çevir
+    const fileStream = Readable.from(req.file.buffer);
+    
     const media = {
       mimeType: req.file.mimetype,
-      body: req.file.buffer
+      body: fileStream
     };
 
     const file = await drive.files.create({
@@ -162,13 +180,18 @@ router.post('/upload', authenticateToken, upload.single('file'), async (req, res
     });
 
     // Dosyayı herkesle paylaş (public link için)
-    await drive.permissions.create({
-      fileId: file.data.id!,
-      requestBody: {
-        role: 'reader',
-        type: 'anyone'
-      }
-    });
+    try {
+      await drive.permissions.create({
+        fileId: file.data.id!,
+        requestBody: {
+          role: 'reader',
+          type: 'anyone'
+        }
+      });
+    } catch (permError: any) {
+      console.warn('Dosya paylaşım izni hatası (devam ediliyor):', permError.message);
+      // Paylaşım hatası kritik değil, devam et
+    }
 
     res.json({
       fileId: file.data.id,
@@ -179,7 +202,15 @@ router.post('/upload', authenticateToken, upload.single('file'), async (req, res
     });
   } catch (error: any) {
     console.error('Google Drive yükleme hatası:', error);
-    res.status(500).json({ error: error.message || 'Dosya yüklenirken bir hata oluştu' });
+    console.error('Hata detayları:', {
+      message: error.message,
+      code: error.code,
+      errors: error.errors
+    });
+    res.status(500).json({ 
+      error: error.message || 'Dosya yüklenirken bir hata oluştu',
+      details: error.errors || error.code
+    });
   }
 });
 
