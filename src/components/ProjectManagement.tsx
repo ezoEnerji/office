@@ -15,7 +15,12 @@ import {
   Calculator, 
   RefreshCw, 
   AlertCircle, 
-  MapPin 
+  MapPin,
+  ArrowUp,
+  ArrowDown,
+  ChevronDown,
+  ChevronRight,
+  Layers
 } from 'lucide-react';
 import { Project, Transaction, Company, User, ProjectStatus, Currency, ProjectPriority, PermissionType, Entity, TaxItem, Contract, Tax } from '../types';
 import { PROJECT_STATUS_LABELS, PROJECT_PRIORITY_LABELS, MARKET_RATES } from '../data/constants';
@@ -64,6 +69,12 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
 }) => {
   // Detail view sub-tabs
   const [detailTab, setDetailTab] = useState<'overview' | 'financials'>('overview');
+  
+  // Transaction table sorting and grouping
+  const [sortColumn, setSortColumn] = useState<string | null>(null);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [groupBy, setGroupBy] = useState<'none' | 'date' | 'category' | 'date-category'>('none');
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
   const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
@@ -903,35 +914,126 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
 
                  {/* Transaction Table */}
                  <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col">
-                    <div className="p-5 border-b border-slate-100 flex justify-between items-center">
-                       <h3 className="font-bold text-slate-800">Finansal Hareketler</h3>
-                       {hasPermission('MANAGE_TRANSACTIONS') && (
-                         <button 
-                            onClick={openTransactionModal}
-                            className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 transition text-sm font-medium"
-                         >
-                            <Plus size={16} /> Yeni İşlem Ekle
-                         </button>
-                       )}
+                    <div className="p-5 border-b border-slate-100">
+                       <div className="flex justify-between items-center mb-4">
+                          <h3 className="font-bold text-slate-800">Finansal Hareketler</h3>
+                          {hasPermission('MANAGE_TRANSACTIONS') && (
+                            <button 
+                               onClick={openTransactionModal}
+                               className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 transition text-sm font-medium"
+                            >
+                               <Plus size={16} /> Yeni İşlem Ekle
+                            </button>
+                          )}
+                       </div>
+                       {/* Sorting and Grouping Controls */}
+                       <div className="flex items-center gap-4 flex-wrap">
+                          <div className="flex items-center gap-2">
+                             <Layers size={16} className="text-slate-500" />
+                             <span className="text-sm text-slate-600">Grupla:</span>
+                             <select
+                                value={groupBy}
+                                onChange={(e) => {
+                                  setGroupBy(e.target.value as any);
+                                  setExpandedGroups(new Set());
+                                }}
+                                className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                             >
+                                <option value="none">Gruplama Yok</option>
+                                <option value="date">Tarihe Göre</option>
+                                <option value="category">Kategoriye Göre</option>
+                                <option value="date-category">Tarih ve Kategoriye Göre</option>
+                             </select>
+                          </div>
+                       </div>
                     </div>
                     <div className="overflow-x-auto">
                       <table className="w-full text-left text-sm">
                          <thead className="bg-slate-50 text-slate-500">
                             <tr>
-                               <th className="p-4 font-medium">Tarih</th>
-                               <th className="p-4 font-medium">Açıklama</th>
-                               <th className="p-4 font-medium">Kategori</th>
+                               <th className="p-4 font-medium">
+                                  <button
+                                     onClick={() => handleSort('date')}
+                                     className="flex items-center gap-1 hover:text-slate-700 transition"
+                                  >
+                                     Tarih
+                                     {sortColumn === 'date' && (
+                                       sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />
+                                     )}
+                                  </button>
+                               </th>
+                               <th className="p-4 font-medium">
+                                  <button
+                                     onClick={() => handleSort('description')}
+                                     className="flex items-center gap-1 hover:text-slate-700 transition"
+                                  >
+                                     Açıklama
+                                     {sortColumn === 'description' && (
+                                       sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />
+                                     )}
+                                  </button>
+                               </th>
+                               <th className="p-4 font-medium">
+                                  <button
+                                     onClick={() => handleSort('category')}
+                                     className="flex items-center gap-1 hover:text-slate-700 transition"
+                                  >
+                                     Kategori
+                                     {sortColumn === 'category' && (
+                                       sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />
+                                     )}
+                                  </button>
+                               </th>
                                <th className="p-4 font-medium">Tutar (Orijinal)</th>
-                                 <th className="p-4 font-medium">Kur</th>
-                                 <th className="p-4 font-medium text-right">Tutar ({selectedProject.agreementCurrency})</th>
-                                 <th className="p-4 font-medium text-center">Belge</th>
-                                 {hasPermission('MANAGE_TRANSACTIONS') && (
-                                   <th className="p-4 font-medium text-center">İşlemler</th>
-                                 )}
-                              </tr>
-                           </thead>
-                           <tbody className="divide-y divide-slate-100">
-                              {projectTransactions.length > 0 ? projectTransactions.map(t => {
+                               <th className="p-4 font-medium">Kur</th>
+                               <th className="p-4 font-medium text-right">
+                                  <button
+                                     onClick={() => handleSort('amount')}
+                                     className="flex items-center gap-1 hover:text-slate-700 transition ml-auto"
+                                  >
+                                     Tutar ({selectedProject.agreementCurrency})
+                                     {sortColumn === 'amount' && (
+                                       sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />
+                                     )}
+                                  </button>
+                               </th>
+                               <th className="p-4 font-medium text-center">Belge</th>
+                               {hasPermission('MANAGE_TRANSACTIONS') && (
+                                 <th className="p-4 font-medium text-center">İşlemler</th>
+                               )}
+                            </tr>
+                         </thead>
+                         <tbody className="divide-y divide-slate-100">
+                              {displayTransactions.length > 0 ? displayTransactions.map((item, idx) => {
+                                // Group header
+                                if ('type' in item && item.type === 'group') {
+                                  const group = item.group;
+                                  const isExpanded = expandedGroups.has(group.key);
+                                  return (
+                                    <React.Fragment key={`group-${group.key}`}>
+                                      <tr className="bg-slate-50 hover:bg-slate-100 transition cursor-pointer" onClick={() => toggleGroup(group.key)}>
+                                        <td colSpan={hasPermission('MANAGE_TRANSACTIONS') ? 8 : 7} className="p-3">
+                                          <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                              {isExpanded ? <ChevronDown size={16} className="text-slate-500" /> : <ChevronRight size={16} className="text-slate-500" />}
+                                              <span className="font-semibold text-slate-700">{group.label}</span>
+                                              <span className="text-xs text-slate-500">({group.transactions.length} işlem)</span>
+                                            </div>
+                                            <div className="flex items-center gap-4">
+                                              <span className="text-sm text-slate-600">Toplam:</span>
+                                              <span className={`font-bold ${group.total >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                {group.total >= 0 ? '+' : ''}{formatCurrency(Math.abs(group.total), selectedProject.agreementCurrency)}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    </React.Fragment>
+                                  );
+                                }
+                                
+                                // Transaction row
+                                const t = item as Transaction;
                                  // Kur USD/TL formatında, bu yüzden bölme yapıyoruz
                                  const converted = t.currency === selectedProject.agreementCurrency 
                                    ? t.amount 
