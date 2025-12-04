@@ -49,43 +49,64 @@ const getDriveClient = () => {
 // Ana klasör ID'sini al veya oluştur
 const getOrCreateRootFolder = async (drive: any, folderName: string): Promise<string> => {
   try {
-    // Önce mevcut klasörü ara
+    // GOOGLE_DRIVE_ROOT_FOLDER_ID varsa direkt kullan (paylaşılan klasör veya Shared Drive)
+    if (process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID) {
+      try {
+        const folder = await drive.files.get({
+          fileId: process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID,
+          fields: 'id, name, driveId',
+          supportsAllDrives: true
+        });
+        console.log(`✅ Paylaşılan klasör bulundu: ${folder.data.name} (ID: ${folder.data.id})`);
+        return process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID;
+      } catch (error: any) {
+        console.error('GOOGLE_DRIVE_ROOT_FOLDER_ID geçersiz:', error.message);
+        throw new Error(
+          `GOOGLE_DRIVE_ROOT_FOLDER_ID geçersiz veya erişilemiyor. ` +
+          `Lütfen klasör ID'sini kontrol edin ve service account'un klasöre erişim yetkisi olduğundan emin olun. ` +
+          `Service Account email: ${JSON.parse(process.env.GOOGLE_DRIVE_CREDENTIALS || '{}').client_email || 'bilinmiyor'}`
+        );
+      }
+    }
+
+    // GOOGLE_DRIVE_ROOT_FOLDER_ID yoksa, paylaşılan klasörlerde ara
     const response = await drive.files.list({
       q: `name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
       fields: 'files(id, name)',
-      spaces: 'drive'
+      spaces: 'drive',
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
+      corpora: 'allDrives' // Tüm drive'ları dahil et (Shared Drive ve paylaşılan klasörler)
     });
 
     if (response.data.files && response.data.files.length > 0) {
+      console.log(`✅ Klasör bulundu: ${response.data.files[0].name} (ID: ${response.data.files[0].id})`);
       return response.data.files[0].id!;
     }
 
-    // Klasör yoksa oluştur
-    const folderMetadata = {
-      name: folderName,
-      mimeType: 'application/vnd.google-apps.folder'
-    };
-
-    const folder = await drive.files.create({
-      requestBody: folderMetadata,
-      fields: 'id'
-    });
-
-    return folder.data.id!;
+    // Klasör bulunamadı
+    throw new Error(
+      `'${folderName}' klasörü bulunamadı. ` +
+      `Lütfen normal bir Google hesabında '${folderName}' klasörünü oluşturup service account'a paylaşın, ` +
+      `sonra GOOGLE_DRIVE_ROOT_FOLDER_ID environment variable'ını klasör ID'si ile ayarlayın. ` +
+      `Service Account email: ${JSON.parse(process.env.GOOGLE_DRIVE_CREDENTIALS || '{}').client_email || 'bilinmiyor'}`
+    );
   } catch (error: any) {
     console.error('Klasör oluşturma hatası:', error);
-    throw new Error('Google Drive klasörü oluşturulamadı');
+    throw error;
   }
 };
 
 // Alt klasör oluştur veya al
 const getOrCreateSubFolder = async (drive: any, parentId: string, folderName: string): Promise<string> => {
   try {
-    // Önce mevcut klasörü ara
+    // Önce mevcut klasörü ara (shared drive desteği ile)
     const response = await drive.files.list({
       q: `name='${folderName}' and '${parentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
       fields: 'files(id, name)',
-      spaces: 'drive'
+      spaces: 'drive',
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true
     });
 
     if (response.data.files && response.data.files.length > 0) {
@@ -99,10 +120,19 @@ const getOrCreateSubFolder = async (drive: any, parentId: string, folderName: st
       parents: [parentId]
     };
 
-    const folder = await drive.files.create({
+    // Shared Drive veya paylaşılan klasör desteği
+    let createOptions: any = {
       requestBody: folderMetadata,
-      fields: 'id'
-    });
+      fields: 'id',
+      supportsAllDrives: true
+    };
+
+    // Eğer Shared Drive kullanılıyorsa driveId ekle
+    if (process.env.GOOGLE_DRIVE_ID) {
+      createOptions.driveId = process.env.GOOGLE_DRIVE_ID;
+    }
+
+    const folder = await drive.files.create(createOptions);
 
     return folder.data.id!;
   } catch (error: any) {
@@ -173,11 +203,21 @@ router.post('/upload', authenticateToken, upload.single('file'), async (req, res
       body: fileStream
     };
 
-    const file = await drive.files.create({
+    // Shared Drive veya paylaşılan klasör desteği için driveId kontrolü
+    let createOptions: any = {
       requestBody: fileMetadata,
       media: media,
-      fields: 'id, name, webViewLink, webContentLink'
-    });
+      fields: 'id, name, webViewLink, webContentLink',
+      supportsAllDrives: true
+    };
+
+    // Eğer Shared Drive kullanılıyorsa driveId ekle
+    if (process.env.GOOGLE_DRIVE_ID) {
+      createOptions.driveId = process.env.GOOGLE_DRIVE_ID;
+      createOptions.supportsAllDrives = true;
+    }
+
+    const file = await drive.files.create(createOptions);
 
     // Dosyayı herkesle paylaş (public link için)
     try {
@@ -186,7 +226,8 @@ router.post('/upload', authenticateToken, upload.single('file'), async (req, res
         requestBody: {
           role: 'reader',
           type: 'anyone'
-        }
+        },
+        supportsAllDrives: true
       });
     } catch (permError: any) {
       console.warn('Dosya paylaşım izni hatası (devam ediliyor):', permError.message);
@@ -223,7 +264,8 @@ router.delete('/:fileId', authenticateToken, async (req, res) => {
 
     const drive = getDriveClient();
     await drive.files.delete({
-      fileId: req.params.fileId
+      fileId: req.params.fileId,
+      supportsAllDrives: true
     });
 
     res.json({ success: true });
@@ -300,7 +342,9 @@ router.get('/files/list', authenticateToken, async (req, res) => {
       q: query,
       fields: 'files(id, name, mimeType, size, createdTime, modifiedTime, webViewLink, webContentLink, parents)',
       orderBy: 'modifiedTime desc',
-      pageSize: 1000
+      pageSize: 1000,
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true
     });
 
     const files = (response.data.files || []).map((file: any) => {
@@ -347,7 +391,9 @@ router.get('/folders/structure', authenticateToken, async (req, res) => {
     const rootFolders = await drive.files.list({
       q: `'${rootFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
       fields: 'files(id, name)',
-      orderBy: 'name'
+      orderBy: 'name',
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true
     });
 
     const structure: any = {
@@ -361,7 +407,9 @@ router.get('/folders/structure', authenticateToken, async (req, res) => {
       const subFolders = await drive.files.list({
         q: `'${folder.id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
         fields: 'files(id, name)',
-        orderBy: 'name'
+        orderBy: 'name',
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true
       });
 
       structure.folders.push({
