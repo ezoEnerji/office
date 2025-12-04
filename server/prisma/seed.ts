@@ -10,10 +10,70 @@ async function main() {
   // Sadece boş tablolarda seed yap
   const roleCount = await prisma.role.count();
   const userCount = await prisma.user.count();
+  let taxCount = 0;
+  try {
+    taxCount = await (prisma as any).tax.count();
+  } catch {
+    // Tax modeli henüz generate edilmemiş
+  }
 
   if (roleCount > 0 || userCount > 0) {
     console.log('⚠️  Veritabanında zaten veri var, seed atlanıyor.');
     return;
+  }
+
+  // Taxes - Sadece boşsa ekle (Prisma generate sonrası çalışacak)
+  try {
+    if (taxCount === 0) {
+      await (prisma as any).tax.createMany({
+        data: [
+          {
+            name: 'KDV',
+            code: 'KDV',
+            rate: 20,
+            calculationType: 'percentage',
+            baseType: 'amount',
+            description: 'Katma Değer Vergisi - Ana tutar üzerinden %20',
+            isActive: true,
+            order: 1
+          },
+          {
+            name: 'Stopaj',
+            code: 'STOPAJ',
+            rate: 20,
+            calculationType: 'percentage',
+            baseType: 'total',
+            description: 'Stopaj - Toplam tutar üzerinden %20',
+            isActive: true,
+            order: 2
+          },
+          {
+            name: 'Tevkifat',
+            code: 'TEVKIFAT',
+            rate: 50,
+            calculationType: 'percentage',
+            baseType: 'vat',
+            description: 'Tevkifat - KDV tutarı üzerinden %50',
+            isActive: true,
+            order: 3
+          },
+          {
+            name: 'ÖİV',
+            code: 'OIV',
+            rate: 5,
+            calculationType: 'percentage',
+            baseType: 'amount',
+            description: 'Özel İletişim Vergisi - Ana tutar üzerinden %5',
+            isActive: true,
+            order: 4
+          }
+        ]
+      });
+      console.log('✅ Örnek vergiler eklendi');
+    }
+  } catch (error: any) {
+    // Tax modeli henüz generate edilmemiş olabilir
+    console.log('⚠️  Vergiler eklenemedi (Prisma generate gerekli):', error.message);
   }
 
   // Roles
@@ -23,7 +83,7 @@ async function main() {
     create: {
       name: 'Süper Yönetici',
       description: 'Tüm sisteme tam erişim',
-      permissions: ['VIEW_DASHBOARD', 'MANAGE_COMPANIES', 'MANAGE_ENTITIES', 'MANAGE_PROJECTS', 'MANAGE_TRANSACTIONS', 'MANAGE_ROLES', 'VIEW_REPORTS', 'MANAGE_DOCUMENTS']
+      permissions: ['VIEW_DASHBOARD', 'MANAGE_COMPANIES', 'MANAGE_ENTITIES', 'MANAGE_PROJECTS', 'MANAGE_TRANSACTIONS', 'MANAGE_ROLES', 'VIEW_REPORTS', 'MANAGE_DOCUMENTS'] as any
     }
   });
 
@@ -33,7 +93,7 @@ async function main() {
     create: {
       name: 'Muhasebe Müdürü',
       description: 'Finansal işlemler ve raporlar',
-      permissions: ['VIEW_DASHBOARD', 'MANAGE_ENTITIES', 'MANAGE_TRANSACTIONS', 'VIEW_REPORTS']
+      permissions: ['VIEW_DASHBOARD', 'MANAGE_ENTITIES', 'MANAGE_TRANSACTIONS', 'VIEW_REPORTS'] as any
     }
   });
 
@@ -43,7 +103,7 @@ async function main() {
     create: {
       name: 'Proje Yöneticisi',
       description: 'Sadece proje takibi',
-      permissions: ['VIEW_DASHBOARD', 'MANAGE_PROJECTS', 'VIEW_REPORTS']
+      permissions: ['VIEW_DASHBOARD', 'MANAGE_PROJECTS', 'VIEW_REPORTS'] as any
     }
   });
 

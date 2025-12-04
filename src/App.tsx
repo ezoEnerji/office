@@ -31,6 +31,7 @@ import { RoleManagement } from './components/RoleManagement';
 import { FinancialManagement } from './components/FinancialManagement';
 import { DocumentManagement } from './components/DocumentManagement';
 import { Reports } from './components/Reports';
+import { TaxManagement } from './components/TaxManagement';
 import { Unauthorized } from './components/Unauthorized';
 
 const App = () => {
@@ -51,6 +52,7 @@ const App = () => {
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [documents, setDocuments] = useState<Document[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [taxes, setTaxes] = useState<Tax[]>([]);
 
   const [aiAnalysis, setAiAnalysis] = useState<string>('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -104,7 +106,7 @@ const App = () => {
 
   const loadInitialData = async () => {
     try {
-      const [rolesData, usersData, companiesData, entitiesData, projectsData, contractsData, documentsData, transactionsData] = await Promise.all([
+      const [rolesData, usersData, companiesData, entitiesData, projectsData, contractsData, documentsData, transactionsData, taxesData] = await Promise.all([
         apiService.getRoles(),
         apiService.getUsers(),
         apiService.getCompanies(),
@@ -112,7 +114,8 @@ const App = () => {
         apiService.getProjects(),
         apiService.getContracts(),
         apiService.getDocuments(),
-        apiService.getTransactions()
+        apiService.getTransactions(),
+        apiService.getTaxes()
       ]);
 
       // Backend'den gelen verileri parse et (PostgreSQL JSON field'ları direkt obje olarak gelir)
@@ -125,6 +128,7 @@ const App = () => {
       setContracts(contractsData.map((c: any) => ({ ...c, attachments: Array.isArray(c.attachments) ? c.attachments : (c.attachments || []) })));
       setDocuments(documentsData);
       setTransactions(transactionsData.map((t: any) => ({ ...t, taxes: t.taxes ? (Array.isArray(t.taxes) ? t.taxes : t.taxes) : undefined })));
+      setTaxes(taxesData);
 
       // Login'den gelen user bilgisini koru, loadInitialData'da override etme
       // currentUser zaten handleLogin'de set edilmiş olmalı
@@ -147,6 +151,7 @@ const App = () => {
     setContracts([]);
     setDocuments([]);
     setTransactions([]);
+    setTaxes([]);
   };
 
   // CRUD Wrapper Functions - Backend API çağrıları
@@ -183,6 +188,10 @@ const App = () => {
       if (!type || type === 'roles') {
         const rolesData = await apiService.getRoles();
         setRoles(rolesData.map((r: any) => ({ ...r, permissions: Array.isArray(r.permissions) ? r.permissions : (r.permissions || []) })));
+      }
+      if (!type || type === 'taxes') {
+        const taxesData = await apiService.getTaxes();
+        setTaxes(taxesData);
       }
     } catch (error) {
       console.error('Veri yenileme hatası:', error);
@@ -323,6 +332,7 @@ const App = () => {
                 users={users}
                 entities={entities}
                 contracts={contracts}
+                taxes={taxes}
                 selectedProject={selectedProject}
                 setSelectedProject={setSelectedProject}
                 analyzeProject={analyzeProject}
@@ -384,6 +394,16 @@ const App = () => {
                 entities={entities}
                 contracts={contracts}
                 users={users}
+              /> 
+            : <Unauthorized />
+        )}
+
+        {activeTab === 'taxes' && (
+          hasPermission('MANAGE_TRANSACTIONS') 
+            ? <TaxManagement 
+                taxes={taxes}
+                setTaxes={setTaxes}
+                onRefresh={() => refreshData('taxes')}
               /> 
             : <Unauthorized />
         )}

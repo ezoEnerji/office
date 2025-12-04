@@ -185,3 +185,19 @@ model Document {
   @@index([category, relatedId])
 }
 
+model Tax {
+  id              String   @id @default(cuid())
+  name            String   @unique
+  code            String?  // Vergi kodu (örn: KDV, Stopaj, Tevkifat)
+  rate            Float    // Oran (% veya sabit tutar)
+  calculationType String   @default("percentage") // "percentage" | "fixed"
+  baseType        String   @default("amount") // "amount" | "vat" | "total" - Hesaplama tabanı
+  description     String?
+  isActive        Boolean  @default(true)
+  order           Int      @default(0) // Sıralama
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([isActive, order])
+}
+

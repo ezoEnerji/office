@@ -8,7 +8,8 @@ import {
   Wallet,
   FileText,
   LogOut,
-  Folder // Added
+  Folder,
+  Receipt
 } from 'lucide-react';
 import { User, Role, PermissionType } from '../types';
 
@@ -104,6 +105,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition text-sm font-medium ${activeTab === 'roles' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
           >
             <ShieldCheck size={18} /> Personel & Yetki
+          </button>
+        )}
+        {hasPermission('MANAGE_TRANSACTIONS') && (
+          <button 
+            onClick={() => setActiveTab('taxes')} 
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition text-sm font-medium ${activeTab === 'taxes' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
+          >
+            <Receipt size={18} /> Vergi Yönetimi
           </button>
         )}
       </nav>

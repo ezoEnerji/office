@@ -351,6 +351,37 @@ class ApiService {
   async deleteGoogleDriveFile(fileId: string) {
     return this.request(`/googledrive/${fileId}`, { method: 'DELETE' });
   }
+
+  // Taxes
+  async getTaxes() {
+    return this.request<any[]>(`/taxes`);
+  }
+
+  async getActiveTaxes() {
+    return this.request<any[]>(`/taxes/active`);
+  }
+
+  async getTax(id: string) {
+    return this.request<any>(`/taxes/${id}`);
+  }
+
+  async createTax(data: any) {
+    return this.request<any>(`/taxes`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateTax(id: string, data: any) {
+    return this.request<any>(`/taxes/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteTax(id: string) {
+    return this.request(`/taxes/${id}`, { method: 'DELETE' });
+  }
 }
 
 export const apiService = new ApiService();

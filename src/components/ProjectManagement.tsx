@@ -17,7 +17,7 @@ import {
   AlertCircle, 
   MapPin 
 } from 'lucide-react';
-import { Project, Transaction, Company, User, ProjectStatus, Currency, ProjectPriority, PermissionType, Entity, TaxItem, Contract } from '../types';
+import { Project, Transaction, Company, User, ProjectStatus, Currency, ProjectPriority, PermissionType, Entity, TaxItem, Contract, Tax } from '../types';
 import { PROJECT_STATUS_LABELS, PROJECT_PRIORITY_LABELS, MARKET_RATES } from '../data/constants';
 import { formatCurrency, getCrossRate, fetchTCMBRate } from '../utils/helpers';
 
@@ -32,6 +32,7 @@ interface ProjectManagementProps {
   users: User[];
   entities: Entity[];
   contracts: Contract[];
+  taxes: Tax[];
   selectedProject: Project | null;
   setSelectedProject: (project: Project | null) => void;
   analyzeProject: (project: Project) => void;
@@ -51,6 +52,7 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
   users,
   entities,
   contracts,
+  taxes,
   selectedProject,
   setSelectedProject,
   analyzeProject,
@@ -91,33 +93,79 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
   const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [isUploadingDocument, setIsUploadingDocument] = useState(false);
   
-  // Vergi Ekleme State'i
-  const [tempTax, setTempTax] = useState<{name: string, rate: number}>({ name: 'KDV', rate: 20 });
+  // Vergi Seçimi State'i
+  const [selectedTaxId, setSelectedTaxId] = useState<string>('');
+
+  // Aktif vergileri filtrele
+  const activeTaxes = taxes.filter(t => t.isActive).sort((a, b) => a.order - b.order);
 
   const addTax = () => {
-    if (!newTrans.amount || !tempTax.name || tempTax.rate === undefined) return;
-    
-    // KDV dahil/hariç durumuna göre hesaplama
-    let taxAmount: number;
-    if (newTrans.isVatIncluded) {
-      // KDV dahil ise: KDV = (Tutar * KDV Oranı) / (100 + KDV Oranı)
-      taxAmount = (newTrans.amount * tempTax.rate) / (100 + tempTax.rate);
-    } else {
-      // KDV hariç ise: KDV = (Tutar * KDV Oranı) / 100
-      taxAmount = (newTrans.amount * tempTax.rate) / 100;
+    if (!newTrans.amount || !selectedTaxId) {
+      alert('Lütfen bir vergi seçin');
+      return;
     }
-    
+
+    const selectedTax = taxes.find(t => t.id === selectedTaxId);
+    if (!selectedTax) return;
+
+    // Hesaplama tabanına göre base amount'u belirle
+    let baseAmount: number;
+    if (selectedTax.baseType === 'amount') {
+      // Ana tutar üzerinden
+      baseAmount = newTrans.amount;
+    } else if (selectedTax.baseType === 'vat') {
+      // KDV üzerinden - önce KDV'yi hesapla
+      const vatTax = newTrans.taxes?.find(t => t.name.toLowerCase().includes('kdv'));
+      if (vatTax) {
+        baseAmount = vatTax.amount;
+      } else {
+        // KDV yoksa, KDV hariç tutar üzerinden KDV hesapla
+        if (newTrans.isVatIncluded) {
+          // KDV dahil ise: KDV = (Tutar * 20) / (100 + 20)
+          baseAmount = (newTrans.amount * 20) / 120;
+        } else {
+          // KDV hariç ise: KDV = (Tutar * 20) / 100
+          baseAmount = (newTrans.amount * 20) / 100;
+        }
+      }
+    } else {
+      // Toplam tutar üzerinden (vergiler dahil)
+      const currentTotal = newTrans.taxes?.reduce((sum, t) => sum + t.amount, 0) || 0;
+      baseAmount = newTrans.amount + currentTotal;
+    }
+
+    // Hesaplama tipine göre vergi tutarını hesapla
+    let taxAmount: number;
+    if (selectedTax.calculationType === 'percentage') {
+      taxAmount = (baseAmount * selectedTax.rate) / 100;
+    } else {
+      // Sabit tutar
+      taxAmount = selectedTax.rate;
+    }
+
+    // KDV dahil/hariç durumuna göre düzeltme (sadece baseType === 'amount' için)
+    if (selectedTax.baseType === 'amount' && newTrans.isVatIncluded && selectedTax.name.toLowerCase().includes('kdv')) {
+      // KDV dahil ise: KDV = (Tutar * KDV Oranı) / (100 + KDV Oranı)
+      taxAmount = (newTrans.amount * selectedTax.rate) / (100 + selectedTax.rate);
+    }
+
     const newTaxItem: TaxItem = {
       id: `tax_${Date.now()}`,
-      name: tempTax.name,
-      rate: tempTax.rate,
-      amount: taxAmount
+      taxId: selectedTax.id,
+      name: selectedTax.name,
+      rate: selectedTax.rate,
+      amount: taxAmount,
+      calculationType: selectedTax.calculationType,
+      baseType: selectedTax.baseType
     };
 
     setNewTrans({
       ...newTrans,
       taxes: [...(newTrans.taxes || []), newTaxItem]
     });
+    
+    // Seçimi temizle
+    setSelectedTaxId('');
   };
 
   const removeTax = (id: string) => {
@@ -1222,25 +1270,22 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                     <span className="text-xs font-semibold text-slate-600">Vergiler</span>
                     <div className="flex gap-2 items-center">
                       <select 
-                        className="w-24 p-1 border rounded text-xs"
-                        value={tempTax.name}
-                        onChange={e => setTempTax({...tempTax, name: e.target.value})}
+                        className="flex-1 p-1 border rounded text-xs"
+                        value={selectedTaxId}
+                        onChange={e => setSelectedTaxId(e.target.value)}
                       >
-                        <option value="KDV">KDV</option>
-                        <option value="Stopaj">Stopaj</option>
-                        <option value="ÖİV">ÖİV</option>
+                        <option value="">Vergi Seçin...</option>
+                        {activeTaxes.map(tax => (
+                          <option key={tax.id} value={tax.id}>
+                            {tax.name} ({tax.rate}{tax.calculationType === 'percentage' ? '%' : ' TL'}) - {tax.baseType === 'amount' ? 'Tutar' : tax.baseType === 'vat' ? 'KDV' : 'Toplam'} üzerinden
+                          </option>
+                        ))}
                       </select>
-                      <input 
-                        type="number" 
-                        className="w-12 p-1 border rounded text-xs text-center"
-                        placeholder="%"
-                        value={tempTax.rate}
-                        onChange={e => setTempTax({...tempTax, rate: Number(e.target.value)})}
-                      />
                       <button 
                         onClick={addTax}
-                        disabled={!newTrans.amount}
+                        disabled={!newTrans.amount || !selectedTaxId}
                         className="bg-blue-600 text-white p-1 rounded hover:bg-blue-700 disabled:opacity-50"
+                        title="Vergi Ekle"
                       >
                         <Plus size={14} />
                       </button>
@@ -1251,7 +1296,14 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                   <div className="space-y-1 max-h-24 overflow-y-auto custom-scrollbar">
                     {newTrans.taxes?.map(tax => (
                       <div key={tax.id} className="flex justify-between items-center text-xs bg-white p-1.5 rounded border border-slate-100">
-                        <span>{tax.name} (%{tax.rate})</span>
+                        <span>
+                          {tax.name} ({tax.rate}{tax.calculationType === 'percentage' ? '%' : ' TL'})
+                          {tax.baseType !== 'amount' && (
+                            <span className="text-slate-400 ml-1">
+                              ({tax.baseType === 'vat' ? 'KDV' : 'Toplam'} üzerinden)
+                            </span>
+                          )}
+                        </span>
                         <div className="flex items-center gap-2">
                           <span className="font-mono">{formatCurrency(tax.amount, newTrans.currency as Currency)}</span>
                           <button onClick={() => removeTax(tax.id)} className="text-red-400 hover:text-red-600"><X size={12} /></button>

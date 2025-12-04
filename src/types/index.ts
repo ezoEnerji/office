@@ -96,11 +96,26 @@ export interface Transaction {
   isVatIncluded?: boolean; // KDV dahil mi? (false = KDV hariç, true = KDV dahil)
 }
 
+export interface Tax {
+  id: string;
+  name: string;
+  code?: string;
+  rate: number;
+  calculationType: 'percentage' | 'fixed'; // Yüzde mi, sabit tutar mı?
+  baseType: 'amount' | 'vat' | 'total'; // Hesaplama tabanı: tutar, KDV, toplam
+  description?: string;
+  isActive: boolean;
+  order: number;
+}
+
 export interface TaxItem {
   id: string;
+  taxId: string; // Tax ID'si
   name: string;
   rate: number;
   amount: number;
+  calculationType: 'percentage' | 'fixed';
+  baseType: 'amount' | 'vat' | 'total';
 }
 
 export type ContractStatus = 'draft' | 'active' | 'completed' | 'cancelled' | 'expired';
