@@ -75,6 +75,11 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [groupBy, setGroupBy] = useState<'none' | 'date' | 'category' | 'date-category'>('none');
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  
+  // Transaction table search and pagination
+  const [transactionSearch, setTransactionSearch] = useState<string>('');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(10);
 
   const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
@@ -804,6 +809,33 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
       });
     }
     
+    // Search filter
+    let filteredDisplayTransactions = displayTransactions;
+    if (transactionSearch.trim()) {
+      const searchLower = transactionSearch.toLowerCase();
+      filteredDisplayTransactions = displayTransactions.filter(item => {
+        if ('type' in item && item.type === 'group') {
+          // Group header - search in label
+          return item.group.label.toLowerCase().includes(searchLower);
+        } else {
+          // Transaction - search in description, category, invoiceNumber
+          const t = item as Transaction;
+          return (
+            t.description.toLowerCase().includes(searchLower) ||
+            t.category.toLowerCase().includes(searchLower) ||
+            (t.invoiceNumber && t.invoiceNumber.toLowerCase().includes(searchLower))
+          );
+        }
+      });
+    }
+    
+    // Pagination
+    const totalItems = filteredDisplayTransactions.length;
+    const totalPages = Math.ceil(totalItems / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const paginatedTransactions = filteredDisplayTransactions.slice(startIndex, endIndex);
+    
     const totalIncome = projectTransactions
       .filter(t => t.type === 'income')
       .reduce((acc, t) => {
@@ -1075,24 +1107,85 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                             </button>
                           )}
                        </div>
-                       {/* Sorting and Grouping Controls */}
-                       <div className="flex items-center gap-4 flex-wrap">
+                       {/* Search, Sorting and Grouping Controls */}
+                       <div className="space-y-3">
+                          {/* Search */}
                           <div className="flex items-center gap-2">
-                             <Layers size={16} className="text-slate-500" />
-                             <span className="text-sm text-slate-600">Grupla:</span>
-                             <select
-                                value={groupBy}
-                                onChange={(e) => {
-                                  setGroupBy(e.target.value as any);
-                                  setExpandedGroups(new Set());
-                                }}
-                                className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                             >
-                                <option value="none">Gruplama Yok</option>
-                                <option value="date">Tarihe Göre</option>
-                                <option value="category">Kategoriye Göre</option>
-                                <option value="date-category">Tarih ve Kategoriye Göre</option>
-                             </select>
+                             <div className="relative flex-1 max-w-md">
+                                <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                                <input
+                                   type="text"
+                                   placeholder="Açıklama, kategori veya fatura no ile ara..."
+                                   value={transactionSearch}
+                                   onChange={(e) => setTransactionSearch(e.target.value)}
+                                   className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                />
+                                {transactionSearch && (
+                                  <button
+                                     onClick={() => setTransactionSearch('')}
+                                     className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                  >
+                                     <X size={16} />
+                                  </button>
+                                )}
+                             </div>
+                          </div>
+                          
+                          {/* Sorting and Grouping */}
+                          <div className="flex items-center gap-4 flex-wrap">
+                             <div className="flex items-center gap-2">
+                                <Layers size={16} className="text-slate-500" />
+                                <span className="text-sm text-slate-600">Grupla:</span>
+                                <select
+                                   value={groupBy}
+                                   onChange={(e) => {
+                                     setGroupBy(e.target.value as any);
+                                     setExpandedGroups(new Set());
+                                   }}
+                                   className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                >
+                                   <option value="none">Gruplama Yok</option>
+                                   <option value="date">Tarihe Göre</option>
+                                   <option value="category">Kategoriye Göre</option>
+                                   <option value="date-category">Tarih ve Kategoriye Göre</option>
+                                </select>
+                             </div>
+                             
+                             {/* Items per page */}
+                             <div className="flex items-center gap-2">
+                                <span className="text-sm text-slate-600">Sayfa başına:</span>
+                                <select
+                                   value={itemsPerPage}
+                                   onChange={(e) => {
+                                     setItemsPerPage(Number(e.target.value));
+                                     setCurrentPage(1);
+                                   }}
+                                   className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                >
+                                   <option value="10">10</option>
+                                   <option value="25">25</option>
+                                   <option value="50">50</option>
+                                   <option value="100">100</option>
+                                </select>
+                             </div>
+                             
+                             {/* Results count */}
+                             {(() => {
+                               const totalItems = filteredDisplayTransactions.length;
+                               const startIndex = (currentPage - 1) * itemsPerPage;
+                               const endIndex = startIndex + itemsPerPage;
+                               return (
+                                 <div className="text-sm text-slate-500 ml-auto">
+                                    {totalItems > 0 ? (
+                                      <span>
+                                         {startIndex + 1}-{Math.min(endIndex, totalItems)} / {totalItems} kayıt
+                                      </span>
+                                    ) : (
+                                      <span>Kayıt bulunamadı</span>
+                                    )}
+                                 </div>
+                               );
+                             })()}
                           </div>
                        </div>
                     </div>
@@ -1153,7 +1246,7 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                             </tr>
                          </thead>
                          <tbody className="divide-y divide-slate-100">
-                              {displayTransactions.length > 0 ? displayTransactions.map((item, idx) => {
+                              {paginatedTransactions.length > 0 ? paginatedTransactions.map((item, idx) => {
                                 // Group header
                                 if ('type' in item && item.type === 'group') {
                                   const group = item.group;
@@ -1268,13 +1361,71 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                                  <tr>
                                     <td colSpan={hasPermission('MANAGE_TRANSACTIONS') ? 8 : 7} className="p-12 text-center text-slate-400 flex flex-col items-center gap-2">
                                      <Calculator size={48} className="text-slate-200" />
-                                     <span>Henüz bir finansal işlem kaydı bulunmuyor.</span>
+                                     <span>
+                                       {transactionSearch ? 'Arama kriterlerinize uygun kayıt bulunamadı.' : 'Henüz bir finansal işlem kaydı bulunmuyor.'}
+                                     </span>
                                   </td>
                                </tr>
                             )}
                          </tbody>
                       </table>
                     </div>
+                    
+                    {/* Pagination */}
+                    {totalPages > 1 && (
+                       <div className="p-5 border-t border-slate-100 flex items-center justify-between">
+                          <div className="text-sm text-slate-600">
+                             Sayfa {currentPage} / {totalPages}
+                          </div>
+                          <div className="flex items-center gap-2">
+                             <button
+                                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                disabled={currentPage === 1}
+                                className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                             >
+                                Önceki
+                             </button>
+                             
+                             {/* Page numbers */}
+                             <div className="flex items-center gap-1">
+                                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                  let pageNum: number;
+                                  if (totalPages <= 5) {
+                                    pageNum = i + 1;
+                                  } else if (currentPage <= 3) {
+                                    pageNum = i + 1;
+                                  } else if (currentPage >= totalPages - 2) {
+                                    pageNum = totalPages - 4 + i;
+                                  } else {
+                                    pageNum = currentPage - 2 + i;
+                                  }
+                                  
+                                  return (
+                                    <button
+                                       key={pageNum}
+                                       onClick={() => setCurrentPage(pageNum)}
+                                       className={`px-3 py-1.5 border rounded-lg text-sm transition ${
+                                         currentPage === pageNum
+                                           ? 'bg-blue-600 text-white border-blue-600'
+                                           : 'border-slate-300 hover:bg-slate-50'
+                                       }`}
+                                    >
+                                       {pageNum}
+                                    </button>
+                                  );
+                                })}
+                             </div>
+                             
+                             <button
+                                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                disabled={currentPage === totalPages}
+                                className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                             >
+                                Sonraki
+                             </button>
+                          </div>
+                       </div>
+                    )}
                  </div>
               </div>
            )}
