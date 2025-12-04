@@ -66,28 +66,25 @@ router.get('/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// Upload document
-router.post('/', authenticateToken, upload.single('file'), async (req, res) => {
+// Upload document (now accepts JSON with Google Drive URL)
+router.post('/', authenticateToken, async (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ error: 'Dosya yüklenmedi' });
-    
     const userId = (req as any).user?.userId;
-    const { name, category, relatedId } = req.body;
+    const { name, category, relatedId, url, type, size } = req.body;
     
-    const fileSizeMB = (req.file.size / (1024 * 1024)).toFixed(2) + ' MB';
-    const fileUrl = `/uploads/${req.file.filename}`;
+    if (!name || !url) {
+      return res.status(400).json({ error: 'Dosya adı ve URL gerekli' });
+    }
 
     const document = await prisma.document.create({
       data: {
-        name: name || req.file.originalname,
-        type: req.file.mimetype.includes('pdf') ? 'pdf' : 
-              req.file.mimetype.includes('image') ? 'image' :
-              req.file.mimetype.includes('spreadsheet') ? 'spreadsheet' : 'other',
-        size: fileSizeMB,
+        name: name,
+        type: type || 'other',
+        size: size || '0 MB',
         uploaderId: userId,
         category: category || 'general',
         relatedId: relatedId || null,
-        url: fileUrl
+        url: url // Google Drive URL
       }
     });
     res.json(document);

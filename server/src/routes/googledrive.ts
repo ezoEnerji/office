@@ -231,5 +231,124 @@ router.get('/:fileId', authenticateToken, async (req, res) => {
   }
 });
 
+// Google Drive'dan tüm dosyaları listele
+router.get('/files/list', authenticateToken, async (req, res) => {
+  try {
+    if (!process.env.GOOGLE_DRIVE_CREDENTIALS) {
+      return res.status(500).json({ error: 'Google Drive yapılandırması bulunamadı' });
+    }
+
+    const { folderId, category, search } = req.query;
+    const drive = getDriveClient();
+
+    // Klasör yapısını oluştur
+    const rootFolderName = process.env.GOOGLE_DRIVE_ROOT_FOLDER || 'EzoOffice';
+    const rootFolderId = await getOrCreateRootFolder(drive, rootFolderName);
+
+    let query = `'${folderId || rootFolderId}' in parents and trashed=false`;
+    
+    // Kategoriye göre filtrele
+    if (category === 'project') {
+      const projectsFolderId = await getOrCreateSubFolder(drive, rootFolderId, 'Projeler');
+      query = `'${projectsFolderId}' in parents and trashed=false`;
+    } else if (category === 'contract') {
+      const contractsFolderId = await getOrCreateSubFolder(drive, rootFolderId, 'Sözleşmeler');
+      query = `'${contractsFolderId}' in parents and trashed=false`;
+    } else if (category === 'document') {
+      const documentsFolderId = await getOrCreateSubFolder(drive, rootFolderId, 'Dökümanlar');
+      query = `'${documentsFolderId}' in parents and trashed=false`;
+    }
+
+    // Arama sorgusu varsa ekle
+    if (search) {
+      query += ` and name contains '${search}'`;
+    }
+
+    // Dosyaları listele
+    const response = await drive.files.list({
+      q: query,
+      fields: 'files(id, name, mimeType, size, createdTime, modifiedTime, webViewLink, webContentLink, parents)',
+      orderBy: 'modifiedTime desc',
+      pageSize: 1000
+    });
+
+    const files = (response.data.files || []).map((file: any) => {
+      const fileType = file.mimeType?.includes('pdf') ? 'pdf' :
+                      file.mimeType?.includes('image') ? 'image' :
+                      file.mimeType?.includes('spreadsheet') ? 'spreadsheet' :
+                      file.mimeType?.includes('document') ? 'document' : 'other';
+      
+      return {
+        id: file.id,
+        fileId: file.id,
+        name: file.name,
+        type: fileType,
+        size: file.size ? `${(parseInt(file.size) / (1024 * 1024)).toFixed(2)} MB` : '0 MB',
+        uploadDate: file.createdTime?.split('T')[0] || new Date().toISOString().split('T')[0],
+        modifiedTime: file.modifiedTime,
+        webViewLink: file.webViewLink,
+        downloadUrl: `https://drive.google.com/uc?export=download&id=${file.id}`,
+        mimeType: file.mimeType,
+        parents: file.parents,
+        inDatabase: false // Google Drive'dan direkt geldiği için
+      };
+    });
+
+    res.json(files);
+  } catch (error: any) {
+    console.error('Google Drive dosya listesi hatası:', error);
+    res.status(500).json({ error: error.message || 'Dosyalar listelenirken bir hata oluştu' });
+  }
+});
+
+// Klasör yapısını getir
+router.get('/folders/structure', authenticateToken, async (req, res) => {
+  try {
+    if (!process.env.GOOGLE_DRIVE_CREDENTIALS) {
+      return res.status(500).json({ error: 'Google Drive yapılandırması bulunamadı' });
+    }
+
+    const drive = getDriveClient();
+    const rootFolderName = process.env.GOOGLE_DRIVE_ROOT_FOLDER || 'EzoOffice';
+    const rootFolderId = await getOrCreateRootFolder(drive, rootFolderName);
+
+    // Ana klasörleri listele
+    const rootFolders = await drive.files.list({
+      q: `'${rootFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+      fields: 'files(id, name)',
+      orderBy: 'name'
+    });
+
+    const structure: any = {
+      rootId: rootFolderId,
+      rootName: rootFolderName,
+      folders: []
+    };
+
+    // Her klasör için alt klasörleri getir
+    for (const folder of rootFolders.data.files || []) {
+      const subFolders = await drive.files.list({
+        q: `'${folder.id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+        fields: 'files(id, name)',
+        orderBy: 'name'
+      });
+
+      structure.folders.push({
+        id: folder.id,
+        name: folder.name,
+        subFolders: (subFolders.data.files || []).map((f: any) => ({
+          id: f.id,
+          name: f.name
+        }))
+      });
+    }
+
+    res.json(structure);
+  } catch (error: any) {
+    console.error('Google Drive klasör yapısı hatası:', error);
+    res.status(500).json({ error: error.message || 'Klasör yapısı alınırken bir hata oluştu' });
+  }
+});
+
 export default router;
 
