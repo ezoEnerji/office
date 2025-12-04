@@ -250,7 +250,7 @@ class ApiService {
     return this.request(`/documents/${id}`, { method: 'DELETE' });
   }
 
-  // File Upload
+  // File Upload (Local - deprecated, use uploadToGoogleDrive)
   async uploadFile(formData: FormData, type: 'avatar' | 'contract' | 'document' | 'general' = 'general'): Promise<string> {
     const token = this.getToken();
     const headers: HeadersInit = {};
@@ -273,9 +273,83 @@ class ApiService {
     return data.url || data.path;
   }
 
-  // Get all files from uploads directory
+  // Google Drive Upload
+  async uploadToGoogleDrive(
+    file: File,
+    options: {
+      category: 'project' | 'contract' | 'document' | 'general';
+      projectId?: string;
+      projectCode?: string;
+      projectName?: string;
+      contractId?: string;
+      contractCode?: string;
+      contractName?: string;
+      transactionId?: string;
+      documentName?: string;
+    }
+  ): Promise<{ fileId: string; fileName: string; webViewLink: string; downloadUrl: string }> {
+    const token = this.getToken();
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('category', options.category);
+    if (options.projectId) formData.append('projectId', options.projectId);
+    if (options.projectCode) formData.append('projectCode', options.projectCode);
+    if (options.projectName) formData.append('projectName', options.projectName);
+    if (options.contractId) formData.append('contractId', options.contractId);
+    if (options.contractCode) formData.append('contractCode', options.contractCode);
+    if (options.contractName) formData.append('contractName', options.contractName);
+    if (options.transactionId) formData.append('transactionId', options.transactionId);
+    if (options.documentName) formData.append('documentName', options.documentName);
+
+    const response = await fetch(`${API_BASE_URL}/googledrive/upload`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Bir hata oluştu' }));
+      throw new Error(error.error || `HTTP ${response.status}`);
+    }
+
+    return await response.json();
+  }
+
+  // Get all files from uploads directory (deprecated - use getDocuments instead)
   async getAllFiles() {
-    return this.request<any[]>('/documents/all-files');
+    // Artık Google Drive kullanıyoruz, bu yüzden veritabanındaki dökümanları döndürüyoruz
+    return this.getDocuments();
+  }
+
+  // Get all documents from database
+  async getDocuments(category?: string, relatedId?: string) {
+    const params = new URLSearchParams();
+    if (category) params.append('category', category);
+    if (relatedId) params.append('relatedId', relatedId);
+    const query = params.toString();
+    return this.request<any[]>(`/documents${query ? `?${query}` : ''}`);
+  }
+
+  // Upload document (Google Drive)
+  async uploadDocument(
+    file: File,
+    options: {
+      category: string;
+      relatedId?: string;
+      name?: string;
+    }
+  ): Promise<{ fileId: string; fileName: string; webViewLink: string; downloadUrl: string }> {
+    return this.uploadToGoogleDrive(file, {
+      category: 'document',
+      documentName: options.category
+    });
+  }
+
+  // Delete file from Google Drive
+  async deleteGoogleDriveFile(fileId: string) {
+    return this.request(`/googledrive/${fileId}`, { method: 'DELETE' });
   }
 }
 

@@ -41,21 +41,27 @@ export const DocumentManagement: React.FC<DocumentManagementProps> = ({
     relatedId: ''
   });
 
-  // Load all files from uploads directory
+  // Load all files from Google Drive
   React.useEffect(() => {
     const loadAllFiles = async () => {
       setIsLoading(true);
       try {
-        const files = await apiService.getAllFiles();
-        setAllFiles(files);
+        // Google Drive'dan dosyaları getir
+        const driveFiles = await apiService.getAllFiles(
+          selectedCategory !== 'all' ? selectedCategory : undefined,
+          searchQuery || undefined
+        );
+        setAllFiles(driveFiles);
       } catch (error) {
-        console.error('Dosyalar yüklenirken hata:', error);
+        console.error('Google Drive dosyaları yüklenirken hata:', error);
+        // Hata durumunda boş array göster
+        setAllFiles([]);
       } finally {
         setIsLoading(false);
       }
     };
     loadAllFiles();
-  }, []);
+  }, [selectedCategory, searchQuery]);
 
   const categories = [
     { id: 'all', label: 'Tüm Dosyalar', icon: Folder, color: 'text-blue-500' },
@@ -75,31 +81,31 @@ export const DocumentManagement: React.FC<DocumentManagementProps> = ({
     }
   };
 
-  // Combine database documents and files from uploads directory
-  const allDocuments = React.useMemo(() => {
-    const dbDocs = documents.map(doc => ({ ...doc, source: 'database' }));
-    const fileDocs = allFiles
-      .filter(file => !documents.some(doc => doc.url === file.url))
-      .map(file => ({
-        id: file.id,
-        name: file.name,
-        type: file.type,
-        size: file.size,
-        uploadDate: file.uploadDate,
-        uploaderId: file.uploaderId,
-        category: file.category,
-        relatedId: file.relatedId,
-        url: file.url,
-        source: 'filesystem' as const
-      }));
-    return [...dbDocs, ...fileDocs];
-  }, [documents, allFiles]);
-
-  const filteredDocuments = allDocuments.filter(doc => {
-    const matchesCategory = selectedCategory === 'all' || doc.category === selectedCategory;
-    const matchesSearch = doc.name.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCategory && matchesSearch;
-  });
+  // Google Drive dosyalarını kullan (artık veritabanı kayıtlarına gerek yok)
+  const filteredDocuments = React.useMemo(() => {
+    return allFiles.filter(file => {
+      // Kategori filtreleme (dosya adına veya klasör yapısına göre)
+      let matchesCategory = true;
+      if (selectedCategory !== 'all') {
+        const fileName = file.name.toLowerCase();
+        if (selectedCategory === 'contract') {
+          matchesCategory = fileName.includes('sözleşme') || fileName.includes('contract') || 
+                           (file.parents && file.parents.some((p: string) => p.includes('Sözleşmeler')));
+        } else if (selectedCategory === 'invoice') {
+          matchesCategory = fileName.includes('fatura') || fileName.includes('invoice');
+        } else if (selectedCategory === 'project') {
+          matchesCategory = fileName.includes('proje') || fileName.includes('project') ||
+                           (file.parents && file.parents.some((p: string) => p.includes('Projeler')));
+        } else if (selectedCategory === 'document') {
+          matchesCategory = !fileName.includes('sözleşme') && !fileName.includes('fatura') && 
+                           !fileName.includes('proje') && !fileName.includes('contract') &&
+                           !fileName.includes('invoice') && !fileName.includes('project');
+        }
+      }
+      const matchesSearch = file.name.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesCategory && matchesSearch;
+    });
+  }, [allFiles, selectedCategory, searchQuery]);
 
   // Gerçek input change handler
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -121,10 +127,13 @@ export const DocumentManagement: React.FC<DocumentManagementProps> = ({
         relatedId: uploadForm.relatedId || undefined
       });
 
-      // Refresh documents and files
+      // Refresh Google Drive files
       if (onRefresh) onRefresh();
-      const files = await apiService.getAllFiles();
-      setAllFiles(files);
+      const driveFiles = await apiService.getAllFiles(
+        selectedCategory !== 'all' ? selectedCategory : undefined,
+        searchQuery || undefined
+      );
+      setAllFiles(driveFiles);
       
       setIsUploadModalOpen(false);
       setUploadForm({ file: null, category: 'general', relatedId: '' });
@@ -230,33 +239,39 @@ export const DocumentManagement: React.FC<DocumentManagementProps> = ({
                 <div key={doc.id} className="group bg-white p-4 rounded-xl border border-slate-200 hover:shadow-md transition cursor-pointer flex flex-col items-center text-center relative">
                   <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition flex gap-1">
                     <a 
-                      href={doc.url} 
+                      href={doc.downloadUrl || doc.url} 
                       target="_blank" 
                       rel="noopener noreferrer"
                       onClick={(e) => e.stopPropagation()}
                       className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-slate-600 rounded"
+                      title="İndir"
                     >
                       <Download size={14} />
                     </a>
-                    {(doc as any).source === 'database' && (
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); handleDelete(doc.id); }} 
-                        className="p-1.5 hover:bg-red-50 text-slate-400 hover:text-red-600 rounded"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    )}
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); handleDelete(doc.fileId || doc.id); }} 
+                      className="p-1.5 hover:bg-red-50 text-slate-400 hover:text-red-600 rounded"
+                      title="Google Drive'dan sil"
+                    >
+                      <Trash2 size={14} />
+                    </button>
                   </div>
                   
                   <div className="w-16 h-16 mb-3 flex items-center justify-center bg-slate-50 rounded-lg group-hover:scale-105 transition">
                     {getFileIcon(doc.type)}
                   </div>
                   <h3 className="text-sm font-medium text-slate-700 truncate w-full" title={doc.name}>{doc.name}</h3>
-                  <p className="text-xs text-slate-400 mt-1">{doc.size} • {doc.uploadDate}</p>
-                  {doc.relatedId && (
-                    <span className="mt-2 px-2 py-0.5 bg-blue-50 text-blue-700 text-[10px] rounded-full truncate max-w-full">
-                       {projects.find(p => p.id === doc.relatedId)?.code || contracts.find(c => c.id === doc.relatedId)?.code || 'Bağlantılı'}
-                    </span>
+                  <p className="text-xs text-slate-400 mt-1">{doc.size} • {doc.uploadDate || doc.createdTime?.split('T')[0]}</p>
+                  {doc.webViewLink && (
+                    <a 
+                      href={doc.webViewLink} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="mt-2 px-2 py-0.5 bg-blue-50 text-blue-700 text-[10px] rounded-full truncate max-w-full hover:bg-blue-100 transition"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      Google Drive'da Aç
+                    </a>
                   )}
                 </div>
               ))}
@@ -281,33 +296,35 @@ export const DocumentManagement: React.FC<DocumentManagementProps> = ({
                         {getFileIcon(doc.type)}
                         <span className="font-medium text-slate-700">{doc.name}</span>
                       </td>
-                      <td className="p-3 text-slate-600 capitalize">{categories.find(c => c.id === doc.category)?.label}</td>
+                      <td className="p-3 text-slate-600 capitalize">
+                        {doc.category ? categories.find(c => c.id === doc.category)?.label : 
+                         doc.name.toLowerCase().includes('sözleşme') ? 'Sözleşmeler' :
+                         doc.name.toLowerCase().includes('fatura') ? 'Faturalar' :
+                         doc.name.toLowerCase().includes('proje') ? 'Proje Dosyaları' : 'Genel'}
+                      </td>
                       <td className="p-3 text-slate-500">{doc.size}</td>
-                      <td className="p-3 text-slate-500">{doc.uploadDate}</td>
+                      <td className="p-3 text-slate-500">{doc.uploadDate || doc.createdTime?.split('T')[0] || doc.modifiedTime?.split('T')[0]}</td>
                       <td className="p-3 text-slate-500">
-                        {doc.uploaderId ? users.find(u => u.id === doc.uploaderId)?.name : 'Bilinmiyor'}
-                        {(doc as any).source === 'filesystem' && (
-                          <span className="ml-2 text-xs text-slate-400">(Dosya sistemi)</span>
-                        )}
+                        Google Drive
                       </td>
                       <td className="p-3 text-right">
                         <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition">
                           <a 
-                            href={doc.url} 
+                            href={doc.downloadUrl || doc.url} 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="p-1.5 hover:bg-slate-100 text-slate-500 rounded"
+                            className="p-1.5 hover:bg-blue-50 text-blue-500 rounded"
+                            title="İndir"
                           >
                             <Download size={16} />
                           </a>
-                          {(doc as any).source === 'database' && (
-                            <button 
-                              onClick={() => handleDelete(doc.id)} 
-                              className="p-1.5 hover:bg-red-50 text-red-500 rounded"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          )}
+                          <button 
+                            onClick={() => handleDelete(doc.fileId || doc.id)} 
+                            className="p-1.5 hover:bg-red-50 text-red-500 rounded"
+                            title="Google Drive'dan sil"
+                          >
+                            <Trash2 size={16} />
+                          </button>
                         </div>
                       </td>
                     </tr>

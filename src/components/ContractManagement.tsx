@@ -112,25 +112,43 @@ export const ContractManagement: React.FC<ContractManagementProps> = ({
     }
 
     try {
-      // Dosyaları yükle
+      // Dosyaları Google Drive'a yükle
       const uploadedAttachments: string[] = [];
       for (const file of attachmentFiles) {
         try {
-          const formDataObj = new FormData();
-          formDataObj.append('file', file);
-          const uploadedUrl = await apiService.uploadFile(formDataObj, 'contract');
-          uploadedAttachments.push(uploadedUrl);
-        } catch (error) {
+          const project = projects.find(p => p.id === formData.projectId);
+          const uploaded = await apiService.uploadToGoogleDrive(file, {
+            category: 'contract',
+            contractId: editingContract?.id || 'new',
+            contractCode: formData.code,
+            contractName: formData.name,
+            projectId: formData.projectId,
+            projectCode: project?.code,
+            projectName: project?.name
+          });
+          uploadedAttachments.push(uploaded.webViewLink || uploaded.downloadUrl);
+        } catch (error: any) {
           console.error('Dosya yükleme hatası:', error);
+          alert(`Dosya yüklenirken bir hata oluştu: ${error.message}`);
           // Dosya yüklenemezse devam et, sadece o dosyayı atla
         }
       }
+
+      // Mevcut attachments'ı filtrele: Sadece Google Drive URL'lerini koru (blob: ve /uploads/ ile başlayanları kaldır)
+      const existingAttachments = (formData.attachments || []).filter((url: string) => {
+        if (!url || typeof url !== 'string') return false;
+        // Google Drive URL'leri: drive.google.com içerir veya https:// ile başlar ve blob: veya /uploads/ içermez
+        return url.startsWith('https://') && 
+               !url.startsWith('blob:') && 
+               !url.includes('/uploads/') &&
+               (url.includes('drive.google.com') || url.includes('docs.google.com'));
+      });
 
       const contractData = {
         ...formData,
         code: formData.code.trim(),
         name: formData.name.trim(),
-        attachments: uploadedAttachments, // Yüklenen dosya URL'leri
+        attachments: [...existingAttachments, ...uploadedAttachments], // Mevcut Google Drive URL'leri + yeni yüklenenler
         paymentTerms: formData.paymentTerms && formData.paymentTerms.trim() !== '' ? formData.paymentTerms.trim() : null,
         description: formData.description && formData.description.trim() !== '' ? formData.description.trim() : null
       };

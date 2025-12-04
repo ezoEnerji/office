@@ -88,6 +88,9 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
     isVatIncluded: false // Varsayılan: KDV hariç
   });
   
+  const [documentFile, setDocumentFile] = useState<File | null>(null);
+  const [isUploadingDocument, setIsUploadingDocument] = useState(false);
+  
   // Vergi Ekleme State'i
   const [tempTax, setTempTax] = useState<{name: string, rate: number}>({ name: 'KDV', rate: 20 });
 
@@ -199,6 +202,29 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
     if (!selectedProject || !newTrans.amount || !newTrans.description) return;
     
     try {
+      let documentUrl = null;
+      
+      // Belge varsa Google Drive'a yükle
+      if (documentFile) {
+        setIsUploadingDocument(true);
+        try {
+          const uploaded = await apiService.uploadToGoogleDrive(documentFile, {
+            category: 'project',
+            projectId: selectedProject.id,
+            projectCode: selectedProject.code,
+            projectName: selectedProject.name,
+            transactionId: editingTransaction?.id
+          });
+          documentUrl = uploaded.downloadUrl;
+        } catch (error: any) {
+          alert('Belge yüklenirken bir hata oluştu: ' + error.message);
+          setIsUploadingDocument(false);
+          return;
+        } finally {
+          setIsUploadingDocument(false);
+        }
+      }
+      
       const transactionData = {
         projectId: selectedProject.id,
         type: newTrans.type as 'income' | 'expense',
@@ -207,10 +233,10 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
         date: newTrans.date || new Date().toISOString().split('T')[0],
         description: newTrans.description || '',
         category: newTrans.category || 'Genel',
-        exchangeRate: manualExchangeRate,
+        exchangeRate: manualExchangeRate, // USD/TL formatında (örneğin 42.3702)
         invoiceNumber: newTrans.invoiceNumber && newTrans.invoiceNumber.trim() !== '' ? newTrans.invoiceNumber : null,
         contractId: newTrans.contractId && newTrans.contractId.trim() !== '' ? newTrans.contractId : null,
-        documentUrl: newTrans.documentUrl && newTrans.documentUrl.trim() !== '' ? newTrans.documentUrl : null,
+        documentUrl: documentUrl,
         taxes: newTrans.taxes && newTrans.taxes.length > 0 ? newTrans.taxes : null,
         isVatIncluded: newTrans.isVatIncluded || false,
         totalAmount: newTrans.isVatIncluded 
@@ -242,6 +268,7 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
         taxes: [],
         isVatIncluded: false
       });
+      setDocumentFile(null);
       setManualExchangeRate(1);
     } catch (error: any) {
       alert(error.message || 'İşlem kaydedilirken bir hata oluştu');
@@ -264,6 +291,7 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
       taxes: transaction.taxes || [],
       isVatIncluded: transaction.isVatIncluded || false
     });
+    setDocumentFile(null); // Edit modunda yeni dosya yok
     setManualExchangeRate(transaction.exchangeRate);
     setIsTransactionModalOpen(true);
   };
@@ -1158,22 +1186,32 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                   <label>
                     <span className="text-xs text-slate-500 block mb-1">Belge</span>
                     <div className="flex items-center gap-2">
-                      <label className="cursor-pointer flex-1 bg-slate-50 hover:bg-slate-100 text-slate-600 px-3 py-2 rounded-lg text-xs flex items-center justify-center gap-2 transition border border-slate-200 border-dashed">
+                      <label className="cursor-pointer flex-1 bg-slate-50 hover:bg-slate-100 text-slate-600 px-3 py-2 rounded-lg text-xs flex items-center justify-center gap-2 transition border border-slate-200 border-dashed disabled:opacity-50 disabled:cursor-not-allowed">
                         <FileText size={14} />
-                        {newTrans.documentUrl ? 'Seçildi' : 'Yükle'}
+                        {isUploadingDocument ? 'Yükleniyor...' : documentFile ? documentFile.name : 'Yükle'}
                         <input 
                           type="file" 
                           className="hidden" 
                           accept=".pdf,.jpg,.png,.jpeg"
+                          disabled={isUploadingDocument}
                           onChange={(e) => {
                             if (e.target.files && e.target.files[0]) {
-                              const fakeUrl = URL.createObjectURL(e.target.files[0]);
-                              setNewTrans({...newTrans, documentUrl: fakeUrl});
+                              setDocumentFile(e.target.files[0]);
                             }
                           }}
                         />
                       </label>
-                      {newTrans.documentUrl && <CheckCircle size={16} className="text-green-500" />}
+                      {documentFile && !isUploadingDocument && <CheckCircle size={16} className="text-green-500" />}
+                      {documentFile && (
+                        <button
+                          type="button"
+                          onClick={() => setDocumentFile(null)}
+                          className="text-red-500 hover:text-red-700"
+                          title="Dosyayı kaldır"
+                        >
+                          <X size={16} />
+                        </button>
+                      )}
                     </div>
                   </label>
                 </div>
