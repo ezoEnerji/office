@@ -25,7 +25,7 @@ DB_VM_IP="${DB_VM_IP:-}"
 DB_PASSWORD="${DB_PASSWORD:-}"
 JWT_SECRET="${JWT_SECRET:-}"
 APP_DOMAIN="${APP_DOMAIN:-office.ezoenerji.com}"
-APP_IP="${APP_IP:-$(curl -s ifconfig.me 2>/dev/null || echo "")}"
+APP_IP="${APP_IP:-$(curl -s ifconfig.me 2>/dev/null || echo "34.51.217.25")}"
 
 # Eksik bilgileri kullanıcıdan iste
 if [ -z "$DB_VM_IP" ]; then
