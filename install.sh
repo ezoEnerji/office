@@ -19,12 +19,48 @@ echo "  EzoOffice - Tek Komutla Kurulum"
 echo "==========================================${NC}"
 echo ""
 
-# Değişkenler - BUNLARI DÜZENLEYİN!
-DB_VM_IP="10.226.0.3"
-DB_PASSWORD="Ezo2025!+"
-JWT_SECRET="4d5595a36f22c8d561da29ff8fde626f8febcd5d861d696ea0d394f652e66cfc"
-APP_DOMAIN="office.ezoenerji.com"
-APP_IP=$(curl -s ifconfig.me 2>/dev/null || echo "34.51.217.25")
+# Değişkenler - Environment variable'lardan veya kullanıcıdan al
+# Environment variable'lar varsa onları kullan, yoksa kullanıcıdan iste
+DB_VM_IP="${DB_VM_IP:-}"
+DB_PASSWORD="${DB_PASSWORD:-}"
+JWT_SECRET="${JWT_SECRET:-}"
+APP_DOMAIN="${APP_DOMAIN:-office.ezoenerji.com}"
+APP_IP="${APP_IP:-$(curl -s ifconfig.me 2>/dev/null || echo "")}"
+
+# Eksik bilgileri kullanıcıdan iste
+if [ -z "$DB_VM_IP" ]; then
+    read -p "PostgreSQL VM IP adresi (örn: 10.226.0.3): " DB_VM_IP
+    if [ -z "$DB_VM_IP" ]; then
+        echo -e "${RED}❌ PostgreSQL VM IP adresi zorunludur!${NC}"
+        exit 1
+    fi
+fi
+
+if [ -z "$DB_PASSWORD" ]; then
+    read -sp "PostgreSQL şifresi: " DB_PASSWORD
+    echo
+    if [ -z "$DB_PASSWORD" ]; then
+        echo -e "${RED}❌ PostgreSQL şifresi zorunludur!${NC}"
+        exit 1
+    fi
+fi
+
+if [ -z "$JWT_SECRET" ]; then
+    # Rastgele bir JWT secret oluştur
+    JWT_SECRET=$(openssl rand -hex 32 2>/dev/null || cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 64 | head -n 1)
+    echo -e "${YELLOW}⚠️  JWT_SECRET otomatik oluşturuldu (güvenli bir değer kullanmak için JWT_SECRET environment variable'ı ayarlayın)${NC}"
+fi
+
+if [ -z "$APP_IP" ]; then
+    read -p "Sunucu IP adresi (boş bırakılırsa otomatik tespit edilir): " APP_IP
+    if [ -z "$APP_IP" ]; then
+        APP_IP=$(curl -s ifconfig.me 2>/dev/null || echo "")
+        if [ -z "$APP_IP" ]; then
+            echo -e "${RED}❌ IP adresi tespit edilemedi, lütfen manuel girin!${NC}"
+            exit 1
+        fi
+    fi
+fi
 
 # Home dizinini kontrol et (sudo ile çalıştırıldığında gerçek kullanıcıyı bul)
 if [ -n "$SUDO_USER" ]; then

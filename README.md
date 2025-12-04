@@ -110,6 +110,25 @@ VITE_API_URL=http://localhost:3001/api
 
 Sunucuya kurulum için `install.sh` scriptini kullanın:
 
+### Environment Variables ile (Önerilen)
+
+```bash
+# Environment variable'ları ayarlayın
+export DB_VM_IP="10.226.0.3"
+export DB_PASSWORD="your-secure-password"
+export JWT_SECRET="$(openssl rand -hex 32)"  # Güvenli bir secret oluştur
+export APP_DOMAIN="office.ezoenerji.com"
+export APP_IP="34.51.217.25"  # Opsiyonel, otomatik tespit edilir
+
+# Script'i çalıştırın
+chmod +x install.sh
+sudo ./install.sh
+```
+
+### İnteraktif Mod
+
+Environment variable'lar ayarlanmazsa, script size soracaktır:
+
 ```bash
 chmod +x install.sh
 sudo ./install.sh
@@ -121,3 +140,12 @@ Script otomatik olarak:
 - PM2 ile backend'i başlatır
 - Nginx yapılandırmasını yapar
 - Tüm izinleri ayarlar
+- Google Drive credentials'ı manuel eklemeniz gerekir (GOOGLE_DRIVE_SETUP.md'ye bakın)
+
+### Güvenlik Notları
+
+⚠️ **ÖNEMLİ:** 
+- `install.sh` dosyasında artık hardcoded şifreler yok
+- Tüm gizli bilgiler environment variable'lardan veya kullanıcı girişinden alınır
+- Google Drive credentials'ı sunucuda `/opt/ezooffice/server/.env` dosyasına manuel olarak eklemeniz gerekir
+- JWT_SECRET için güvenli bir değer kullanın: `openssl rand -hex 32`
