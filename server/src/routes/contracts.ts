@@ -65,18 +65,27 @@ router.post('/', authenticateToken, async (req, res) => {
       currency: req.body.currency || 'TRY',
       isVatIncluded: req.body.isVatIncluded !== undefined ? Boolean(req.body.isVatIncluded) : false,
       attachments: req.body.attachments && Array.isArray(req.body.attachments) && req.body.attachments.length > 0 
-        ? req.body.attachments.filter((url: string) => url && typeof url === 'string' && !url.startsWith('blob:')) 
+        ? req.body.attachments.filter((url: string) => url && typeof url === 'string' && !url.startsWith('blob:') && url.trim() !== '') 
         : [],
       // Boş string'leri null'a çevir
       paymentTerms: req.body.paymentTerms && typeof req.body.paymentTerms === 'string' && req.body.paymentTerms.trim() !== '' ? req.body.paymentTerms.trim() : null,
       description: req.body.description && typeof req.body.description === 'string' && req.body.description.trim() !== '' ? req.body.description.trim() : null
     };
 
+    console.log('Contract create data:', JSON.stringify(data, null, 2));
     const contract = await prisma.contract.create({ data });
     res.json(contract);
   } catch (error: any) {
     console.error('Contract create hatası:', error);
-    res.status(400).json({ error: error.message || 'Sözleşme oluşturulamadı' });
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      meta: error.meta
+    });
+    res.status(400).json({ 
+      error: error.message || 'Sözleşme oluşturulamadı',
+      details: error.meta || error.code || 'Bilinmeyen hata'
+    });
   }
 });
 
