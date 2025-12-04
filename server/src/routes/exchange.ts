@@ -77,7 +77,21 @@ router.get('/tcmb', async (req, res) => {
     const toRate = getRate(to as string);
 
     if (fromRate !== null && toRate !== null && toRate !== 0) {
-      return res.json({ rate: fromRate / toRate });
+      // TCMB formatında kur döndür (USD/TL gibi)
+      // TRY → USD için: USD/TL kuru (örneğin 42.3702)
+      // USD → TRY için: USD/TL kuru (aynı, çünkü ters çevirme gerekmez)
+      // EUR → USD için: (USD/TL) / (EUR/TL)
+      if (from === 'TRY' && to !== 'TRY') {
+        // TRY'den başka bir para birimine: Hedef para biriminin TRY karşılığı (USD/TL formatı)
+        return res.json({ rate: toRate });
+      } else if (from !== 'TRY' && to === 'TRY') {
+        // Başka bir para biriminden TRY'ye: Kaynak para biriminin TRY karşılığı (USD/TL formatı)
+        // Ama hesaplama için ters çevirmemiz gerekir: TRY tutarı = Kaynak tutarı * Kur
+        return res.json({ rate: fromRate });
+      } else {
+        // İki para birimi de TRY değil: (Hedef/TL) / (Kaynak/TL)
+        return res.json({ rate: toRate / fromRate });
+      }
     }
     
     return res.status(404).json({ error: 'Kur bulunamadı' });

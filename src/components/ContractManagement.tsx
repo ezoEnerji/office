@@ -70,7 +70,19 @@ export const ContractManagement: React.FC<ContractManagementProps> = ({
   const openModal = (contract?: Contract) => {
     if (contract) {
       setEditingContract(contract);
-      setFormData(contract);
+      // Tarih formatını yyyy-MM-dd'ye çevir
+      const formatDateForInput = (date: string | Date | undefined): string => {
+        if (!date) return '';
+        const d = typeof date === 'string' ? new Date(date) : date;
+        if (isNaN(d.getTime())) return '';
+        return d.toISOString().split('T')[0];
+      };
+      
+      setFormData({
+        ...contract,
+        startDate: formatDateForInput(contract.startDate),
+        endDate: formatDateForInput(contract.endDate)
+      });
       setAttachmentFiles([]); // Edit modunda yeni dosya yok
     } else {
       setEditingContract(null);

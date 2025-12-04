@@ -92,14 +92,26 @@ router.post('/', authenticateToken, async (req, res) => {
 // Update contract
 router.put('/:id', authenticateToken, async (req, res) => {
   try {
+    // Zorunlu alanları kontrol et
+    if (req.body.code && !req.body.code.trim()) {
+      return res.status(400).json({ error: 'Kod boş olamaz' });
+    }
+    if (req.body.name && !req.body.name.trim()) {
+      return res.status(400).json({ error: 'Ad boş olamaz' });
+    }
+
     const data: any = {
       ...req.body,
-      attachments: req.body.attachments && Array.isArray(req.body.attachments) && req.body.attachments.length > 0 ? req.body.attachments : undefined,
+      code: req.body.code ? req.body.code.trim() : undefined,
+      name: req.body.name ? req.body.name.trim() : undefined,
+      attachments: req.body.attachments && Array.isArray(req.body.attachments) && req.body.attachments.length > 0 
+        ? req.body.attachments.filter((url: string) => url && typeof url === 'string' && !url.startsWith('blob:') && url.trim() !== '') 
+        : undefined,
       startDate: req.body.startDate ? new Date(req.body.startDate) : undefined,
       endDate: req.body.endDate ? new Date(req.body.endDate) : undefined,
       // Boş string'leri null'a çevir
-      paymentTerms: req.body.paymentTerms && req.body.paymentTerms.trim() !== '' ? req.body.paymentTerms : null,
-      description: req.body.description && req.body.description.trim() !== '' ? req.body.description : null
+      paymentTerms: req.body.paymentTerms && typeof req.body.paymentTerms === 'string' && req.body.paymentTerms.trim() !== '' ? req.body.paymentTerms.trim() : null,
+      description: req.body.description && typeof req.body.description === 'string' && req.body.description.trim() !== '' ? req.body.description.trim() : null
     };
     
     // undefined değerleri kaldır (Prisma bunları güncellemez)
@@ -109,13 +121,23 @@ router.put('/:id', authenticateToken, async (req, res) => {
       }
     });
     
+    console.log('Contract update data:', JSON.stringify(data, null, 2));
     const contract = await prisma.contract.update({
       where: { id: req.params.id },
       data
     });
     res.json(contract);
   } catch (error: any) {
-    res.status(400).json({ error: error.message });
+    console.error('Contract update hatası:', error);
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      meta: error.meta
+    });
+    res.status(400).json({ 
+      error: error.message || 'Sözleşme güncellenemedi',
+      details: error.meta || error.code || 'Bilinmeyen hata'
+    });
   }
 });
 
