@@ -15,6 +15,12 @@ dist-ssr
 service-account*.json
 google-credentials*.json
 *.key.json
+mythic-fire-*.json
+**/mythic-fire-*.json
+server/*.json
+!server/package.json
+!server/package-lock.json
+!server/tsconfig.json
 
 # Editor directories and files
 .vscode/*
@@ -27,4 +33,3 @@ google-credentials*.json
 *.sln
 *.sw?
 
-install.sh
