@@ -1,5 +1,5 @@
 export type Currency = 'USD' | 'EUR' | 'TRY' | 'GBP';
-export type PermissionType = 'VIEW_DASHBOARD' | 'MANAGE_COMPANIES' | 'MANAGE_PROJECTS' | 'MANAGE_TRANSACTIONS' | 'MANAGE_ROLES' | 'VIEW_REPORTS' | 'MANAGE_ENTITIES' | 'MANAGE_DOCUMENTS';
+export type PermissionType = 'VIEW_DASHBOARD' | 'MANAGE_COMPANIES' | 'MANAGE_PROJECTS' | 'MANAGE_TRANSACTIONS' | 'MANAGE_ROLES' | 'VIEW_REPORTS' | 'MANAGE_ENTITIES' | 'MANAGE_DOCUMENTS' | 'MANAGE_BANK_ACCOUNTS' | 'MANAGE_INVOICES';
 export type EntityType = 'customer' | 'supplier' | 'subcontractor' | 'employee' | 'other';
 export type ProjectStatus = 'active' | 'completed' | 'hold' | 'cancelled';
 export type ProjectPriority = 'low' | 'medium' | 'high';
@@ -94,6 +94,12 @@ export interface Transaction {
   totalAmount?: number; // Vergi dahil toplam tutar
   documentUrl?: string; // Fatura/Dekont Dosyası (PDF/Image)
   isVatIncluded?: boolean; // KDV dahil mi? (false = KDV hariç, true = KDV dahil)
+  bankAccountId?: string; // Banka Hesap ID
+  bankCardId?: string; // Banka Kart ID
+  invoiceId?: string; // Fatura ID
+  bankAccount?: BankAccount; // İlişkili banka hesabı
+  bankCard?: BankCard; // İlişkili banka kartı
+  invoice?: Invoice; // İlişkili fatura
 }
 
 export interface Tax {
@@ -138,5 +144,112 @@ export interface Contract {
   description?: string;
   attachments: string[]; // Dosya URL'leri
   isVatIncluded?: boolean; // KDV dahil mi? (false = KDV hariç, true = KDV dahil)
+}
+
+export type BankAccountType = 'checking' | 'savings' | 'deposit' | 'foreign';
+export type BankCardType = 'credit' | 'debit' | 'prepaid';
+
+export interface BankBranch {
+  id: string;
+  name: string;
+  code?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  city?: string;
+  district?: string;
+  companyId: string;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface BankAccount {
+  id: string;
+  accountName: string;
+  accountNumber: string;
+  iban?: string;
+  currency: Currency;
+  accountType: BankAccountType;
+  bankName: string;
+  branchId?: string;
+  companyId: string;
+  balance: number;
+  isActive: boolean;
+  description?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  branch?: BankBranch;
+}
+
+export interface BankCard {
+  id: string;
+  cardName: string;
+  cardNumber?: string; // Son 4 hanesi
+  cardType: BankCardType;
+  bankName: string;
+  accountId?: string;
+  companyId: string;
+  expiryDate?: string;
+  limit?: number;
+  isActive: boolean;
+  description?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  account?: BankAccount;
+}
+
+export type InvoiceType = 'incoming' | 'outgoing';
+export type InvoiceStatus = 'draft' | 'issued' | 'paid' | 'cancelled' | 'overdue';
+export type PaymentMethod = 'cash' | 'transfer' | 'card' | 'check';
+export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'cancelled';
+
+export interface Invoice {
+  id: string;
+  invoiceNumber: string;
+  invoiceType: InvoiceType;
+  invoiceDate: string;
+  dueDate?: string;
+  amount: number; // KDV hariç tutar
+  vatAmount: number; // KDV tutarı
+  totalAmount: number; // Toplam tutar
+  currency: Currency;
+  status: InvoiceStatus;
+  projectId?: string;
+  companyId: string;
+  entityId: string;
+  contractId?: string;
+  description?: string;
+  documentUrl?: string;
+  isVatIncluded: boolean;
+  taxes?: TaxItem[];
+  notes?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  project?: Project;
+  company?: Company;
+  entity?: Entity;
+  contract?: Contract;
+  payments?: Payment[];
+}
+
+export interface Payment {
+  id: string;
+  paymentDate: string;
+  amount: number;
+  currency: Currency;
+  paymentMethod: PaymentMethod;
+  invoiceId?: string;
+  bankAccountId?: string;
+  bankCardId?: string;
+  description?: string;
+  referenceNumber?: string;
+  status: PaymentStatus;
+  documentUrl?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  invoice?: Invoice;
+  bankAccount?: BankAccount;
+  bankCard?: BankCard;
 }
 

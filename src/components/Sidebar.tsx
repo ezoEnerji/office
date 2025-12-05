@@ -9,7 +9,9 @@ import {
   FileText,
   LogOut,
   Folder,
-  Receipt
+  Receipt,
+  CreditCard,
+  FileInvoice
 } from 'lucide-react';
 import { User, Role, PermissionType } from '../types';
 
@@ -113,6 +115,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition text-sm font-medium ${activeTab === 'taxes' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
           >
             <Receipt size={18} /> Vergi Yönetimi
+          </button>
+        )}
+        {hasPermission('MANAGE_BANK_ACCOUNTS') && (
+          <button 
+            onClick={() => setActiveTab('bankaccounts')} 
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition text-sm font-medium ${activeTab === 'bankaccounts' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
+          >
+            <CreditCard size={18} /> Banka Hesapları
+          </button>
+        )}
+        {hasPermission('MANAGE_INVOICES') && (
+          <button 
+            onClick={() => setActiveTab('invoices')} 
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition text-sm font-medium ${activeTab === 'invoices' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
+          >
+            <FileInvoice size={18} /> Faturalar & Ödemeler
           </button>
         )}
       </nav>

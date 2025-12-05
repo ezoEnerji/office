@@ -21,7 +21,14 @@ router.get('/', authenticateToken, async (req, res) => {
 
     const transactions = await prisma.transaction.findMany({
       where,
-      include: { project: true, contract: true, entity: true, uploader: { include: { role: true } } },
+      include: { 
+        project: true, 
+        contract: true, 
+        entity: true, 
+        uploader: { include: { role: true } },
+        bankAccount: { include: { branch: true } },
+        bankCard: { include: { account: { include: { branch: true } } } }
+      },
       orderBy: { date: 'desc' }
     });
     res.json(transactions);
@@ -35,7 +42,15 @@ router.get('/:id', authenticateToken, async (req, res) => {
   try {
     const transaction = await prisma.transaction.findUnique({
       where: { id: req.params.id },
-      include: { project: true, contract: true, entity: true, uploader: true }
+      include: { 
+        project: true, 
+        contract: true, 
+        entity: true, 
+        uploader: true,
+        bankAccount: { include: { branch: true } },
+        bankCard: { include: { account: { include: { branch: true } } } },
+        invoice: true
+      }
     });
     if (!transaction) return res.status(404).json({ error: 'İşlem bulunamadı' });
     res.json(transaction);
@@ -62,7 +77,10 @@ router.post('/', authenticateToken, async (req, res) => {
       contractId: req.body.contractId && typeof req.body.contractId === 'string' && req.body.contractId.trim() !== '' ? req.body.contractId : null,
       invoiceNumber: req.body.invoiceNumber && typeof req.body.invoiceNumber === 'string' && req.body.invoiceNumber.trim() !== '' ? req.body.invoiceNumber : null,
       documentUrl: req.body.documentUrl && typeof req.body.documentUrl === 'string' && req.body.documentUrl.trim() !== '' ? req.body.documentUrl : null,
-      entityId: req.body.entityId && typeof req.body.entityId === 'string' && req.body.entityId.trim() !== '' ? req.body.entityId : null
+      entityId: req.body.entityId && typeof req.body.entityId === 'string' && req.body.entityId.trim() !== '' ? req.body.entityId : null,
+      bankAccountId: req.body.bankAccountId && typeof req.body.bankAccountId === 'string' && req.body.bankAccountId.trim() !== '' ? req.body.bankAccountId : null,
+      bankCardId: req.body.bankCardId && typeof req.body.bankCardId === 'string' && req.body.bankCardId.trim() !== '' ? req.body.bankCardId : null,
+      invoiceId: req.body.invoiceId && typeof req.body.invoiceId === 'string' && req.body.invoiceId.trim() !== '' ? req.body.invoiceId : null
     };
     
     const transaction = await prisma.transaction.create({ data });
@@ -84,7 +102,10 @@ router.put('/:id', authenticateToken, async (req, res) => {
       contractId: req.body.contractId && req.body.contractId.trim() !== '' ? req.body.contractId : null,
       invoiceNumber: req.body.invoiceNumber && req.body.invoiceNumber.trim() !== '' ? req.body.invoiceNumber : null,
       documentUrl: req.body.documentUrl && req.body.documentUrl.trim() !== '' ? req.body.documentUrl : null,
-      entityId: req.body.entityId && req.body.entityId.trim() !== '' ? req.body.entityId : null
+      entityId: req.body.entityId && req.body.entityId.trim() !== '' ? req.body.entityId : null,
+      bankAccountId: req.body.bankAccountId && req.body.bankAccountId.trim() !== '' ? req.body.bankAccountId : null,
+      bankCardId: req.body.bankCardId && req.body.bankCardId.trim() !== '' ? req.body.bankCardId : null,
+      invoiceId: req.body.invoiceId && req.body.invoiceId.trim() !== '' ? req.body.invoiceId : null
     };
     
     // undefined değerleri kaldır (Prisma bunları güncellemez)

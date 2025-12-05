@@ -51,8 +51,12 @@ model Company {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  projects  Project[]
-  contracts Contract[]
+  projects     Project[]
+  contracts    Contract[]
+  bankBranches  BankBranch[]
+  bankAccounts  BankAccount[]
+  bankCards     BankCard[]
+  invoices     Invoice[]
 }
 
 model Entity {
@@ -73,6 +77,8 @@ model Entity {
   projects  Project[]
   contracts Contract[]
   transactions Transaction[]
+  invoices Invoice[]
+}
 
   @@index([type, status])
 }
@@ -103,6 +109,8 @@ model Project {
   contracts Contract[]
   transactions Transaction[]
   documents Document[]
+  invoices Invoice[]
+}
 
   @@index([companyId, status])
 }
@@ -131,6 +139,8 @@ model Contract {
   company     Company      @relation(fields: [companyId], references: [id])
   entity      Entity       @relation(fields: [entityId], references: [id])
   transactions Transaction[]
+  invoices    Invoice[]
+}
 
   @@index([projectId, status])
 }
@@ -151,19 +161,28 @@ model Transaction {
   totalAmount   Float?
   documentUrl   String?
   isVatIncluded Boolean  @default(false) // KDV dahil mi?
+  bankAccountId String?
+  bankCardId    String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  project   Project  @relation(fields: [projectId], references: [id])
-  contract  Contract? @relation(fields: [contractId], references: [id])
-  entity    Entity?  @relation(fields: [entityId], references: [id])
-  uploader  User     @relation(fields: [uploaderId], references: [id])
+  project     Project      @relation(fields: [projectId], references: [id])
+  contract    Contract?    @relation(fields: [contractId], references: [id])
+  entity      Entity?      @relation(fields: [entityId], references: [id])
+  uploader    User         @relation(fields: [uploaderId], references: [id])
+  bankAccount BankAccount? @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
+  bankCard    BankCard?    @relation(fields: [bankCardId], references: [id], onDelete: SetNull)
+  invoice     Invoice?     @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
 
-  entityId  String?
-  uploaderId String
+  entityId    String?
+  uploaderId  String
+  invoiceId   String?
 
   @@index([projectId, date])
   @@index([contractId])
+  @@index([bankAccountId])
+  @@index([bankCardId])
+  @@index([invoiceId])
 }
 
 model Document {
@@ -199,5 +218,137 @@ model Tax {
   updatedAt       DateTime @updatedAt
 
   @@index([isActive, order])
+}
+
+model BankBranch {
+  id          String   @id @default(cuid())
+  name        String
+  code        String?  // Şube kodu
+  address     String?
+  phone       String?
+  email       String?
+  city        String?
+  district    String?
+  companyId   String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  bankAccounts BankAccount[]
+
+  @@index([companyId, isActive])
+}
+
+model BankAccount {
+  id            String   @id @default(cuid())
+  accountName   String   // Hesap adı
+  accountNumber String   // Hesap numarası
+  iban          String?  // IBAN
+  currency      String   @default("TRY") // Currency enum
+  accountType   String   @default("checking") // "checking" | "savings" | "deposit" | "foreign"
+  bankName      String
+  branchId      String?
+  companyId     String
+  balance       Float    @default(0)
+  isActive      Boolean  @default(true)
+  description   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  company       Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch        BankBranch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  bankCards     BankCard[]
+  transactions  Transaction[]
+  payments      Payment[]
+
+  @@index([companyId, isActive])
+  @@index([branchId])
+}
+
+model BankCard {
+  id            String   @id @default(cuid())
+  cardName      String   // Kart adı
+  cardNumber    String?  // Son 4 hanesi (güvenlik için)
+  cardType      String   @default("credit") // "credit" | "debit" | "prepaid"
+  bankName      String
+  accountId     String?
+  companyId     String
+  expiryDate    DateTime?
+  limit         Float?   // Kredi kartı limiti
+  isActive      Boolean  @default(true)
+  description   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  company       Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  account       BankAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  transactions  Transaction[]
+  payments      Payment[]
+
+  @@index([companyId, isActive])
+  @@index([accountId])
+}
+
+model Invoice {
+  id            String   @id @default(cuid())
+  invoiceNumber String   @unique // Fatura numarası
+  invoiceType   String   @default("outgoing") // "incoming" | "outgoing" - Gelen/Giden
+  invoiceDate   DateTime // Fatura tarihi
+  dueDate       DateTime? // Vade tarihi
+  amount        Float    @default(0) // KDV hariç tutar
+  vatAmount     Float    @default(0) // KDV tutarı
+  totalAmount   Float    @default(0) // Toplam tutar
+  currency      String   @default("TRY") // Currency enum
+  status        String   @default("draft") // "draft" | "issued" | "paid" | "cancelled" | "overdue"
+  projectId     String?
+  companyId     String
+  entityId      String   // Müşteri/Tedarikçi
+  contractId    String?   // Bağlı sözleşme
+  description   String?
+  documentUrl   String?  // Fatura PDF'i
+  isVatIncluded Boolean  @default(false) // KDV dahil mi?
+  taxes         Json?    // PostgreSQL JSON desteği - Dinamik vergiler
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  project   Project?   @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  company   Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  entity    Entity     @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  contract  Contract?  @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  payments  Payment[]
+  transactions Transaction[]
+
+  @@index([companyId, status])
+  @@index([projectId])
+  @@index([entityId])
+  @@index([invoiceDate])
+  @@index([dueDate])
+}
+
+model Payment {
+  id            String   @id @default(cuid())
+  paymentDate   DateTime // Ödeme tarihi
+  amount        Float    // Ödeme tutarı
+  currency      String   @default("TRY") // Currency enum
+  paymentMethod String   @default("transfer") // "cash" | "transfer" | "card" | "check"
+  invoiceId     String?  // Bağlı fatura
+  bankAccountId String?  // Ödeme yapılan hesap
+  bankCardId    String?  // Ödeme yapılan kart
+  description   String?
+  referenceNumber String? // Referans numarası (dekont no, çek no vb.)
+  status        String   @default("completed") // "pending" | "completed" | "failed" | "cancelled"
+  documentUrl   String?  // Ödeme belgesi (dekont, makbuz)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  invoice      Invoice?     @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  bankAccount  BankAccount? @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
+  bankCard     BankCard?    @relation(fields: [bankCardId], references: [id], onDelete: SetNull)
+
+  @@index([invoiceId])
+  @@index([paymentDate])
+  @@index([status])
 }
 

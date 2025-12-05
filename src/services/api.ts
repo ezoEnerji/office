@@ -382,6 +382,157 @@ class ApiService {
   async deleteTax(id: string) {
     return this.request(`/taxes/${id}`, { method: 'DELETE' });
   }
+
+  // Bank Branches
+  async getBankBranches(companyId: string) {
+    return this.request<any[]>(`/bankaccounts/branches/${companyId}`);
+  }
+
+  async getBankBranch(id: string) {
+    return this.request<any>(`/bankaccounts/branches/branch/${id}`);
+  }
+
+  async createBankBranch(data: any) {
+    return this.request<any>(`/bankaccounts/branches`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateBankBranch(id: string, data: any) {
+    return this.request<any>(`/bankaccounts/branches/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteBankBranch(id: string) {
+    return this.request(`/bankaccounts/branches/${id}`, { method: 'DELETE' });
+  }
+
+  // Bank Accounts
+  async getBankAccounts(companyId: string) {
+    return this.request<any[]>(`/bankaccounts/accounts/${companyId}`);
+  }
+
+  async getBankAccount(id: string) {
+    return this.request<any>(`/bankaccounts/accounts/account/${id}`);
+  }
+
+  async createBankAccount(data: any) {
+    return this.request<any>(`/bankaccounts/accounts`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateBankAccount(id: string, data: any) {
+    return this.request<any>(`/bankaccounts/accounts/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteBankAccount(id: string) {
+    return this.request(`/bankaccounts/accounts/${id}`, { method: 'DELETE' });
+  }
+
+  // Bank Cards
+  async getBankCards(companyId: string) {
+    return this.request<any[]>(`/bankaccounts/cards/${companyId}`);
+  }
+
+  async getBankCard(id: string) {
+    return this.request<any>(`/bankaccounts/cards/card/${id}`);
+  }
+
+  async createBankCard(data: any) {
+    return this.request<any>(`/bankaccounts/cards`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateBankCard(id: string, data: any) {
+    return this.request<any>(`/bankaccounts/cards/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteBankCard(id: string) {
+    return this.request(`/bankaccounts/cards/${id}`, { method: 'DELETE' });
+  }
+
+  // Invoices
+  async getInvoices(params?: { companyId?: string; projectId?: string; entityId?: string; invoiceType?: string; status?: string; startDate?: string; endDate?: string }) {
+    const queryParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value) queryParams.append(key, value);
+      });
+    }
+    return this.request<any[]>(`/invoices${queryParams.toString() ? '?' + queryParams.toString() : ''}`);
+  }
+
+  async getInvoice(id: string) {
+    return this.request<any>(`/invoices/${id}`);
+  }
+
+  async createInvoice(data: any) {
+    return this.request<any>(`/invoices`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateInvoice(id: string, data: any) {
+    return this.request<any>(`/invoices/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteInvoice(id: string) {
+    return this.request(`/invoices/${id}`, { method: 'DELETE' });
+  }
+
+  async getInvoicePayments(invoiceId: string) {
+    return this.request<any[]>(`/invoices/${invoiceId}/payments`);
+  }
+
+  // Payments
+  async getPayments(params?: { invoiceId?: string; bankAccountId?: string; bankCardId?: string; status?: string; startDate?: string; endDate?: string }) {
+    const queryParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value) queryParams.append(key, value);
+      });
+    }
+    return this.request<any[]>(`/payments${queryParams.toString() ? '?' + queryParams.toString() : ''}`);
+  }
+
+  async getPayment(id: string) {
+    return this.request<any>(`/payments/${id}`);
+  }
+
+  async createPayment(data: any) {
+    return this.request<any>(`/payments`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updatePayment(id: string, data: any) {
+    return this.request<any>(`/payments/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deletePayment(id: string) {
+    return this.request(`/payments/${id}`, { method: 'DELETE' });
+  }
 }
 
 export const apiService = new ApiService();

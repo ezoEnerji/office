@@ -20,7 +20,9 @@ import {
   ArrowDown,
   ChevronDown,
   ChevronRight,
-  Layers
+  Layers,
+  CreditCard,
+  Wallet
 } from 'lucide-react';
 import { Project, Transaction, Company, User, ProjectStatus, Currency, ProjectPriority, PermissionType, Entity, TaxItem, Contract, Tax } from '../types';
 import { PROJECT_STATUS_LABELS, PROJECT_PRIORITY_LABELS, MARKET_RATES } from '../data/constants';
@@ -103,8 +105,40 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
     invoiceNumber: '',
     documentUrl: '',
     taxes: [],
-    isVatIncluded: false // Varsayılan: KDV hariç
+    isVatIncluded: false, // Varsayılan: KDV hariç
+    bankAccountId: '',
+    bankCardId: ''
   });
+  
+  // Bank accounts and cards for selected project's company
+  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
+  const [bankCards, setBankCards] = useState<BankCard[]>([]);
+  
+  // Load bank accounts and cards when project changes
+  useEffect(() => {
+    if (selectedProject) {
+      const projectCompany = companies.find(c => c.id === selectedProject.companyId);
+      if (projectCompany) {
+        loadBankData(projectCompany.id);
+      }
+    } else {
+      setBankAccounts([]);
+      setBankCards([]);
+    }
+  }, [selectedProject, companies]);
+  
+  const loadBankData = async (companyId: string) => {
+    try {
+      const [accounts, cards] = await Promise.all([
+        apiService.getBankAccounts(companyId),
+        apiService.getBankCards(companyId)
+      ]);
+      setBankAccounts(accounts.filter(a => a.isActive));
+      setBankCards(cards.filter(c => c.isActive));
+    } catch (error: any) {
+      console.error('Banka verileri yüklenirken hata:', error);
+    }
+  };
   
   const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [isUploadingDocument, setIsUploadingDocument] = useState(false);
@@ -303,6 +337,9 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
         documentUrl: documentUrl,
         taxes: newTrans.taxes && newTrans.taxes.length > 0 ? newTrans.taxes : null,
         isVatIncluded: newTrans.isVatIncluded || false,
+        bankAccountId: newTrans.bankAccountId && newTrans.bankAccountId.trim() !== '' ? newTrans.bankAccountId : null,
+        bankCardId: newTrans.bankCardId && newTrans.bankCardId.trim() !== '' ? newTrans.bankCardId : null,
+        invoiceId: newTrans.invoiceId && newTrans.invoiceId.trim() !== '' ? newTrans.invoiceId : null,
         totalAmount: newTrans.isVatIncluded 
           ? (newTrans.amount || 0) // KDV dahil ise tutar zaten toplam
           : (newTrans.amount || 0) + (newTrans.taxes?.reduce((acc, t) => acc + t.amount, 0) || 0) // KDV hariç ise vergi ekle
@@ -330,7 +367,10 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
         contractId: '',
         documentUrl: '',
         taxes: [],
-        isVatIncluded: false
+        isVatIncluded: false,
+        bankAccountId: '',
+        bankCardId: '',
+        invoiceId: ''
       });
       setDocumentFile(null);
       setManualExchangeRate(1);
@@ -353,7 +393,10 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
       contractId: transaction.contractId || '',
       documentUrl: transaction.documentUrl || '',
       taxes: transaction.taxes || [],
-      isVatIncluded: transaction.isVatIncluded || false
+      isVatIncluded: transaction.isVatIncluded || false,
+      bankAccountId: transaction.bankAccountId || '',
+      bankCardId: transaction.bankCardId || '',
+      invoiceId: transaction.invoiceId || ''
     });
     setDocumentFile(null); // Edit modunda yeni dosya yok
     setManualExchangeRate(transaction.exchangeRate);
@@ -1293,6 +1336,12 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                                              <div>
                                                 <div>{t.description}</div>
                                                 {t.invoiceNumber && <div className="text-[10px] text-slate-400 font-mono">Fat: {t.invoiceNumber}</div>}
+                                                {t.invoice && (
+                                                  <div className="text-[10px] text-blue-600 font-mono flex items-center gap-1">
+                                                    <FileText size={10} />
+                                                    {t.invoice.invoiceNumber}
+                                                  </div>
+                                                )}
                                              </div>
                                           </div>
                                        </td>
@@ -1311,6 +1360,22 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                                               <div className="border-t border-slate-200 pt-0.5 font-bold text-slate-500">
                                                 Top: {formatCurrency(t.totalAmount || t.amount, t.currency)}
                                               </div>
+                                            </div>
+                                          )}
+                                          {(t.bankAccount || t.bankCard) && (
+                                            <div className="text-[10px] text-slate-500 mt-1 flex flex-col gap-0.5">
+                                              {t.bankAccount && (
+                                                <div className="flex items-center gap-1">
+                                                  <Wallet size={10} />
+                                                  {t.bankAccount.accountName} - {t.bankAccount.bankName}
+                                                </div>
+                                              )}
+                                              {t.bankCard && (
+                                                <div className="flex items-center gap-1">
+                                                  <CreditCard size={10} />
+                                                  {t.bankCard.cardName} - {t.bankCard.bankName}
+                                                </div>
+                                              )}
                                             </div>
                                           )}
                                        </td>
@@ -1590,24 +1655,44 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                   </label>
                 </div>
 
-                {/* Sözleşme ve Açıklama */}
+                {/* Sözleşme, Fatura ve Açıklama */}
                 <div className="space-y-3">
-                  <label className="block">
-                    <span className="text-xs text-slate-500 block mb-1">Bağlı Sözleşme (Opsiyonel)</span>
-                    <select 
-                      className="w-full p-2 border rounded-lg bg-white text-sm"
-                      value={newTrans.contractId || ''}
-                      onChange={e => setNewTrans({...newTrans, contractId: e.target.value})}
-                    >
-                      <option value="">Bağımsız İşlem</option>
-                      {contracts
-                        .filter(c => c.projectId === selectedProject?.id && c.status === 'active')
-                        .map(c => (
-                          <option key={c.id} value={c.id}>{c.name} ({c.code})</option>
-                        ))
-                      }
-                    </select>
-                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="block">
+                      <span className="text-xs text-slate-500 block mb-1">Bağlı Sözleşme (Opsiyonel)</span>
+                      <select 
+                        className="w-full p-2 border rounded-lg bg-white text-sm"
+                        value={newTrans.contractId || ''}
+                        onChange={e => setNewTrans({...newTrans, contractId: e.target.value})}
+                      >
+                        <option value="">Bağımsız İşlem</option>
+                        {contracts
+                          .filter(c => c.projectId === selectedProject?.id && c.status === 'active')
+                          .map(c => (
+                            <option key={c.id} value={c.id}>{c.name} ({c.code})</option>
+                          ))
+                        }
+                      </select>
+                    </label>
+                    <label className="block">
+                      <span className="text-xs text-slate-500 block mb-1">Bağlı Fatura (Opsiyonel)</span>
+                      <select 
+                        className="w-full p-2 border rounded-lg bg-white text-sm"
+                        value={newTrans.invoiceId || ''}
+                        onChange={e => setNewTrans({...newTrans, invoiceId: e.target.value})}
+                      >
+                        <option value="">Bağımsız İşlem</option>
+                        {invoices
+                          .filter(inv => inv.projectId === selectedProject?.id || !inv.projectId)
+                          .map(inv => (
+                            <option key={inv.id} value={inv.id}>
+                              {inv.invoiceNumber} - {formatCurrency(inv.totalAmount, inv.currency)}
+                            </option>
+                          ))
+                        }
+                      </select>
+                    </label>
+                  </div>
 
                   <label className="block">
                     <span className="text-xs text-slate-500 block mb-1">Açıklama</span>
@@ -1618,6 +1703,53 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                       value={newTrans.description}
                       onChange={e => setNewTrans({...newTrans, description: e.target.value})}
                     />
+                  </label>
+                </div>
+
+                {/* Banka Hesap/Kart Seçimi */}
+                <div className="grid grid-cols-2 gap-3">
+                  <label>
+                    <span className="text-xs text-slate-500 block mb-1">Banka Hesabı (Opsiyonel)</span>
+                    <select 
+                      className="w-full p-2 border rounded-lg bg-white text-sm"
+                      value={newTrans.bankAccountId || ''}
+                      onChange={e => {
+                        setNewTrans({...newTrans, bankAccountId: e.target.value, bankCardId: ''});
+                      }}
+                    >
+                      <option value="">Hesap seçin...</option>
+                      {bankAccounts
+                        .filter(a => a.currency === newTrans.currency || !newTrans.currency)
+                        .map(account => (
+                          <option key={account.id} value={account.id}>
+                            {account.accountName} - {account.bankName} ({account.currency})
+                          </option>
+                        ))
+                      }
+                    </select>
+                  </label>
+                  
+                  <label>
+                    <span className="text-xs text-slate-500 block mb-1">Banka Kartı (Opsiyonel)</span>
+                    <select 
+                      className="w-full p-2 border rounded-lg bg-white text-sm"
+                      value={newTrans.bankCardId || ''}
+                      onChange={e => {
+                        setNewTrans({...newTrans, bankCardId: e.target.value, bankAccountId: ''});
+                      }}
+                      disabled={!!newTrans.bankAccountId}
+                    >
+                      <option value="">Kart seçin...</option>
+                      {bankCards.map(card => (
+                        <option key={card.id} value={card.id}>
+                          {card.cardName} - {card.bankName}
+                        </option>
+                      ))
+                      }
+                    </select>
+                    {newTrans.bankAccountId && (
+                      <p className="text-[10px] text-slate-400 mt-1">Hesap seçildiğinde kart seçilemez</p>
+                    )}
                   </label>
                 </div>
 
@@ -1632,7 +1764,7 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                          value={newTrans.invoiceNumber || ''}
                          onChange={e => setNewTrans({...newTrans, invoiceNumber: e.target.value})}
                       />
-                  </label>
+                   </label>
                   <label>
                     <span className="text-xs text-slate-500 block mb-1">Belge</span>
                     <div className="flex items-center gap-2">

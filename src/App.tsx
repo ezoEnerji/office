@@ -32,6 +32,8 @@ import { FinancialManagement } from './components/FinancialManagement';
 import { DocumentManagement } from './components/DocumentManagement';
 import { Reports } from './components/Reports';
 import { TaxManagement } from './components/TaxManagement';
+import { BankAccountManagement } from './components/BankAccountManagement';
+import { InvoiceManagement } from './components/InvoiceManagement';
 import { Unauthorized } from './components/Unauthorized';
 
 const App = () => {
@@ -40,7 +42,7 @@ const App = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'companies' | 'entities' | 'projects' | 'contracts' | 'roles' | 'reports' | 'documents'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'companies' | 'entities' | 'projects' | 'contracts' | 'roles' | 'reports' | 'documents' | 'taxes' | 'bankaccounts' | 'invoices'>('dashboard');
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
 
   // Data States - Backend'den yüklenecek
@@ -404,6 +406,16 @@ const App = () => {
                 taxes={taxes}
                 setTaxes={setTaxes}
                 onRefresh={() => refreshData('taxes')}
+              /> 
+            : <Unauthorized />
+        )}
+
+        {activeTab === 'bankaccounts' && (
+          hasPermission('MANAGE_BANK_ACCOUNTS') 
+            ? <BankAccountManagement 
+                companies={companies}
+                hasPermission={hasPermission}
+                onRefresh={() => refreshData('companies')}
               /> 
             : <Unauthorized />
         )}

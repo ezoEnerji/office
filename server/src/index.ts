@@ -19,6 +19,9 @@ import uploadRoutes from './routes/uploads.js';
 import exchangeRoutes from './routes/exchange.js';
 import googleDriveRoutes from './routes/googledrive.js';
 import taxRoutes from './routes/taxes.js';
+import bankAccountRoutes from './routes/bankaccounts.js';
+import invoiceRoutes from './routes/invoices.js';
+import paymentRoutes from './routes/payments.js';
 
 dotenv.config();
 
@@ -69,6 +72,9 @@ app.use('/api/uploads', uploadRoutes);
 app.use('/api/exchange', exchangeRoutes);
 app.use('/api/googledrive', googleDriveRoutes);
 app.use('/api/taxes', taxRoutes);
+app.use('/api/bankaccounts', bankAccountRoutes);
+app.use('/api/invoices', invoiceRoutes);
+app.use('/api/payments', paymentRoutes);
 
 // Error handling
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
