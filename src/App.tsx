@@ -427,6 +427,7 @@ const App = () => {
                 projects={projects}
                 entities={entities}
                 contracts={contracts}
+                taxes={taxes}
                 hasPermission={hasPermission}
                 onRefresh={() => refreshData('invoices')}
               /> 

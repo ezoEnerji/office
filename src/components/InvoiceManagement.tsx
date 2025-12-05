@@ -19,7 +19,7 @@ import {
   ArrowDown,
   ArrowUp
 } from 'lucide-react';
-import { Invoice, Payment, Company, Project, Entity, Contract, BankAccount, BankCard, Currency, InvoiceType, InvoiceStatus, PaymentMethod, PaymentStatus } from '../types';
+import { Invoice, Payment, Company, Project, Entity, Contract, BankAccount, BankCard, Currency, InvoiceType, InvoiceStatus, PaymentMethod, PaymentStatus, Tax, TaxItem } from '../types';
 import { apiService } from '../services/api';
 import { formatCurrency } from '../utils/helpers';
 
@@ -28,6 +28,7 @@ interface InvoiceManagementProps {
   projects: Project[];
   entities: Entity[];
   contracts: Contract[];
+  taxes: Tax[];
   hasPermission: (perm: string) => boolean;
   onRefresh?: () => void;
 }
@@ -61,6 +62,7 @@ export const InvoiceManagement: React.FC<InvoiceManagementProps> = ({
   projects,
   entities,
   contracts,
+  taxes,
   hasPermission,
   onRefresh
 }) => {
@@ -89,7 +91,7 @@ export const InvoiceManagement: React.FC<InvoiceManagementProps> = ({
     invoiceType: 'outgoing' as InvoiceType,
     invoiceDate: new Date().toISOString().split('T')[0],
     dueDate: '',
-    amount: 0,
+    amount: 0, // Matrah (KDV hariç tutar)
     vatAmount: 0,
     totalAmount: 0,
     currency: 'TRY' as Currency,
@@ -100,9 +102,15 @@ export const InvoiceManagement: React.FC<InvoiceManagementProps> = ({
     contractId: '',
     description: '',
     isVatIncluded: false,
-    taxes: [] as any[],
+    taxes: [] as TaxItem[],
     notes: ''
   });
+
+  // Vergi seçimi state'i
+  const [selectedTaxId, setSelectedTaxId] = useState<string>('');
+
+  // Aktif vergileri filtrele
+  const activeTaxes = taxes.filter(t => t.isActive).sort((a, b) => a.order - b.order);
   
   // Payment form
   const [paymentForm, setPaymentForm] = useState({
@@ -208,6 +216,106 @@ export const InvoiceManagement: React.FC<InvoiceManagementProps> = ({
     setIsInvoiceModalOpen(true);
   };
 
+  // Vergi ekleme fonksiyonu
+  const addTax = () => {
+    if (!invoiceForm.amount || !selectedTaxId) {
+      alert('Lütfen önce matrah tutarını girin ve bir vergi seçin');
+      return;
+    }
+
+    const selectedTax = taxes.find(t => t.id === selectedTaxId);
+    if (!selectedTax) return;
+
+    // Hesaplama tabanına göre base amount'u belirle
+    let baseAmount: number;
+    if (selectedTax.baseType === 'amount') {
+      // Ana tutar (matrah) üzerinden
+      baseAmount = invoiceForm.amount;
+    } else if (selectedTax.baseType === 'vat') {
+      // KDV üzerinden - önce KDV'yi bul
+      const vatTax = invoiceForm.taxes?.find(t => t.name.toLowerCase().includes('kdv'));
+      if (vatTax) {
+        baseAmount = vatTax.amount;
+      } else {
+        // KDV yoksa, matrah üzerinden KDV hesapla
+        if (invoiceForm.isVatIncluded) {
+          // KDV dahil ise: KDV = (Tutar * 20) / (100 + 20)
+          baseAmount = (invoiceForm.amount * 20) / 120;
+        } else {
+          // KDV hariç ise: KDV = (Tutar * 20) / 100
+          baseAmount = (invoiceForm.amount * 20) / 100;
+        }
+      }
+    } else {
+      // Toplam tutar üzerinden (vergiler dahil)
+      const currentTotal = invoiceForm.taxes?.reduce((sum, t) => sum + t.amount, 0) || 0;
+      baseAmount = invoiceForm.amount + currentTotal;
+    }
+
+    // Hesaplama tipine göre vergi tutarını hesapla
+    let taxAmount: number;
+    if (selectedTax.calculationType === 'percentage') {
+      taxAmount = (baseAmount * selectedTax.rate) / 100;
+    } else {
+      // Sabit tutar
+      taxAmount = selectedTax.rate;
+    }
+
+    // KDV dahil/hariç durumuna göre düzeltme (sadece baseType === 'amount' için)
+    if (selectedTax.baseType === 'amount' && invoiceForm.isVatIncluded && selectedTax.name.toLowerCase().includes('kdv')) {
+      // KDV dahil ise: KDV = (Tutar * KDV Oranı) / (100 + KDV Oranı)
+      taxAmount = (invoiceForm.amount * selectedTax.rate) / (100 + selectedTax.rate);
+    }
+
+    const newTaxItem: TaxItem = {
+      id: `tax_${Date.now()}`,
+      taxId: selectedTax.id,
+      name: selectedTax.name,
+      rate: selectedTax.rate,
+      amount: taxAmount,
+      calculationType: selectedTax.calculationType,
+      baseType: selectedTax.baseType
+    };
+
+    const updatedTaxes = [...(invoiceForm.taxes || []), newTaxItem];
+    
+    // KDV tutarını güncelle
+    const vatTax = updatedTaxes.find(t => t.name.toLowerCase().includes('kdv'));
+    const vatAmount = vatTax ? vatTax.amount : 0;
+    
+    // Toplam tutarı hesapla (matrah + tüm vergiler)
+    const totalAmount = invoiceForm.amount + updatedTaxes.reduce((sum, t) => sum + t.amount, 0);
+
+    setInvoiceForm({
+      ...invoiceForm,
+      taxes: updatedTaxes,
+      vatAmount,
+      totalAmount
+    });
+    
+    // Seçimi temizle
+    setSelectedTaxId('');
+  };
+
+  // Vergi silme fonksiyonu
+  const removeTax = (id: string) => {
+    const updatedTaxes = invoiceForm.taxes?.filter(t => t.id !== id) || [];
+    
+    // KDV tutarını güncelle
+    const vatTax = updatedTaxes.find(t => t.name.toLowerCase().includes('kdv'));
+    const vatAmount = vatTax ? vatTax.amount : 0;
+    
+    // Toplam tutarı hesapla
+    const totalAmount = invoiceForm.amount + updatedTaxes.reduce((sum, t) => sum + t.amount, 0);
+
+    setInvoiceForm({
+      ...invoiceForm,
+      taxes: updatedTaxes,
+      vatAmount,
+      totalAmount
+    });
+  };
+
   const handleSaveInvoice = async () => {
     if (!invoiceForm.invoiceNumber || !invoiceForm.companyId || !invoiceForm.entityId) {
       alert('Fatura numarası, şirket ve cari hesap zorunludur.');
@@ -219,7 +327,8 @@ export const InvoiceManagement: React.FC<InvoiceManagementProps> = ({
         ...invoiceForm,
         projectId: invoiceForm.projectId || null,
         contractId: invoiceForm.contractId || null,
-        dueDate: invoiceForm.dueDate || null
+        dueDate: invoiceForm.dueDate || null,
+        taxes: invoiceForm.taxes && invoiceForm.taxes.length > 0 ? invoiceForm.taxes : null
       };
       
       if (editingInvoice) {
@@ -765,41 +874,56 @@ export const InvoiceManagement: React.FC<InvoiceManagementProps> = ({
                   ))}
                 </select>
               </div>
-              <div className="grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Tutar (KDV Hariç)</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Matrah (KDV Hariç Tutar) *</label>
                   <input
                     type="number"
                     step="0.01"
                     value={invoiceForm.amount}
                     onChange={(e) => {
                       const amount = parseFloat(e.target.value) || 0;
-                      const vatAmount = invoiceForm.isVatIncluded ? 0 : amount * 0.20; // %20 KDV varsayımı
+                      // Vergileri yeniden hesapla
+                      const updatedTaxes = invoiceForm.taxes?.map(tax => {
+                        let baseAmount: number;
+                        if (tax.baseType === 'amount') {
+                          baseAmount = amount;
+                        } else if (tax.baseType === 'vat') {
+                          const vatTax = invoiceForm.taxes?.find(t => t.name.toLowerCase().includes('kdv'));
+                          baseAmount = vatTax ? vatTax.amount : (invoiceForm.isVatIncluded ? (amount * 20) / 120 : (amount * 20) / 100);
+                        } else {
+                          const currentTotal = invoiceForm.taxes?.reduce((sum, t) => sum + t.amount, 0) || 0;
+                          baseAmount = amount + currentTotal;
+                        }
+                        
+                        let taxAmount: number;
+                        if (tax.calculationType === 'percentage') {
+                          taxAmount = (baseAmount * tax.rate) / 100;
+                        } else {
+                          taxAmount = tax.rate;
+                        }
+                        
+                        if (tax.baseType === 'amount' && invoiceForm.isVatIncluded && tax.name.toLowerCase().includes('kdv')) {
+                          taxAmount = (amount * tax.rate) / (100 + tax.rate);
+                        }
+                        
+                        return { ...tax, amount: taxAmount };
+                      }) || [];
+                      
+                      const vatTax = updatedTaxes.find(t => t.name.toLowerCase().includes('kdv'));
+                      const vatAmount = vatTax ? vatTax.amount : 0;
+                      const totalAmount = amount + updatedTaxes.reduce((sum, t) => sum + t.amount, 0);
+                      
                       setInvoiceForm({ 
                         ...invoiceForm, 
                         amount,
+                        taxes: updatedTaxes,
                         vatAmount,
-                        totalAmount: amount + vatAmount
+                        totalAmount
                       });
                     }}
                     className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">KDV</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={invoiceForm.vatAmount}
-                    onChange={(e) => {
-                      const vatAmount = parseFloat(e.target.value) || 0;
-                      setInvoiceForm({ 
-                        ...invoiceForm, 
-                        vatAmount,
-                        totalAmount: invoiceForm.amount + vatAmount
-                      });
-                    }}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder="0.00"
                   />
                 </div>
                 <div>
@@ -809,7 +933,7 @@ export const InvoiceManagement: React.FC<InvoiceManagementProps> = ({
                     step="0.01"
                     value={invoiceForm.totalAmount}
                     readOnly
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg bg-slate-50"
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg bg-slate-50 font-bold text-slate-800"
                   />
                 </div>
                 <div>
@@ -825,6 +949,138 @@ export const InvoiceManagement: React.FC<InvoiceManagementProps> = ({
                     <option value="GBP">GBP</option>
                   </select>
                 </div>
+              </div>
+
+              {/* Dinamik Vergi Ekleme Bölümü */}
+              <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
+                <div className="flex justify-between items-center mb-3">
+                  <label className="block text-sm font-medium text-slate-700">Vergiler</label>
+                  <div className="flex gap-2">
+                    <select
+                      value={selectedTaxId}
+                      onChange={(e) => setSelectedTaxId(e.target.value)}
+                      disabled={!invoiceForm.amount || invoiceForm.amount <= 0}
+                      className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:cursor-not-allowed"
+                    >
+                      <option value="">Vergi Seçin...</option>
+                      {activeTaxes
+                        .filter(tax => !invoiceForm.taxes?.some(t => t.taxId === tax.id)) // Zaten eklenmiş vergileri gösterme
+                        .map(tax => (
+                          <option key={tax.id} value={tax.id}>
+                            {tax.name} ({tax.rate}{tax.calculationType === 'percentage' ? '%' : ' TL'})
+                          </option>
+                        ))
+                      }
+                    </select>
+                    <button
+                      onClick={addTax}
+                      disabled={!selectedTaxId || !invoiceForm.amount || invoiceForm.amount <= 0}
+                      className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition disabled:bg-slate-300 disabled:cursor-not-allowed flex items-center gap-1"
+                    >
+                      <Plus size={14} /> Ekle
+                    </button>
+                  </div>
+                </div>
+
+                {invoiceForm.taxes && invoiceForm.taxes.length > 0 ? (
+                  <div className="space-y-2">
+                    {invoiceForm.taxes.map((tax, index) => (
+                      <div key={tax.id} className="flex items-center justify-between bg-white p-3 rounded-lg border border-slate-200">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-slate-800">{tax.name}</span>
+                            <span className="text-xs text-slate-500">
+                              ({tax.rate}{tax.calculationType === 'percentage' ? '%' : ' TL'} - 
+                              {tax.baseType === 'amount' ? ' Matrah' : tax.baseType === 'vat' ? ' KDV' : ' Toplam'} üzerinden)
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="font-semibold text-slate-800">
+                            {formatCurrency(tax.amount, invoiceForm.currency)}
+                          </span>
+                          <button
+                            onClick={() => removeTax(tax.id)}
+                            className="p-1 text-red-500 hover:bg-red-50 rounded transition"
+                            title="Vergiyi Kaldır"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    <div className="pt-2 border-t border-slate-200 flex justify-between items-center">
+                      <span className="text-sm font-medium text-slate-700">KDV Tutarı:</span>
+                      <span className="font-semibold text-blue-600">
+                        {formatCurrency(invoiceForm.vatAmount, invoiceForm.currency)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium text-slate-700">Toplam Vergiler:</span>
+                      <span className="font-semibold text-slate-800">
+                        {formatCurrency(invoiceForm.taxes.reduce((sum, t) => sum + t.amount, 0), invoiceForm.currency)}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-4 text-slate-400 text-sm">
+                    {invoiceForm.amount > 0 
+                      ? 'Vergi eklemek için yukarıdan vergi seçin ve "Ekle" butonuna tıklayın'
+                      : 'Önce matrah tutarını girin'}
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="isVatIncluded"
+                  checked={invoiceForm.isVatIncluded}
+                  onChange={(e) => {
+                    const isVatIncluded = e.target.checked;
+                    // KDV dahil/hariç değiştiğinde vergileri yeniden hesapla
+                    const updatedTaxes = invoiceForm.taxes?.map(tax => {
+                      let baseAmount: number;
+                      if (tax.baseType === 'amount') {
+                        baseAmount = invoiceForm.amount;
+                      } else if (tax.baseType === 'vat') {
+                        const vatTax = invoiceForm.taxes?.find(t => t.name.toLowerCase().includes('kdv'));
+                        baseAmount = vatTax ? vatTax.amount : (isVatIncluded ? (invoiceForm.amount * 20) / 120 : (invoiceForm.amount * 20) / 100);
+                      } else {
+                        const currentTotal = invoiceForm.taxes?.reduce((sum, t) => sum + t.amount, 0) || 0;
+                        baseAmount = invoiceForm.amount + currentTotal;
+                      }
+                      
+                      let taxAmount: number;
+                      if (tax.calculationType === 'percentage') {
+                        taxAmount = (baseAmount * tax.rate) / 100;
+                      } else {
+                        taxAmount = tax.rate;
+                      }
+                      
+                      if (tax.baseType === 'amount' && isVatIncluded && tax.name.toLowerCase().includes('kdv')) {
+                        taxAmount = (invoiceForm.amount * tax.rate) / (100 + tax.rate);
+                      }
+                      
+                      return { ...tax, amount: taxAmount };
+                    }) || [];
+                    
+                    const vatTax = updatedTaxes.find(t => t.name.toLowerCase().includes('kdv'));
+                    const vatAmount = vatTax ? vatTax.amount : 0;
+                    const totalAmount = invoiceForm.amount + updatedTaxes.reduce((sum, t) => sum + t.amount, 0);
+                    
+                    setInvoiceForm({
+                      ...invoiceForm,
+                      isVatIncluded,
+                      taxes: updatedTaxes,
+                      vatAmount,
+                      totalAmount
+                    });
+                  }}
+                  className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
+                />
+                <label htmlFor="isVatIncluded" className="text-sm font-medium text-slate-700">
+                  KDV Dahil
+                </label>
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Durum</label>
