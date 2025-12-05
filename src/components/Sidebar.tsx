@@ -109,7 +109,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <ShieldCheck size={18} /> Personel & Yetki
           </button>
         )}
-        {hasPermission('MANAGE_TRANSACTIONS') && (
+        {hasPermission('MANAGE_TAXES') && (
           <button 
             onClick={() => setActiveTab('taxes')} 
             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition text-sm font-medium ${activeTab === 'taxes' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}

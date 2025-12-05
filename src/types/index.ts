@@ -1,5 +1,5 @@
 export type Currency = 'USD' | 'EUR' | 'TRY' | 'GBP';
-export type PermissionType = 'VIEW_DASHBOARD' | 'MANAGE_COMPANIES' | 'MANAGE_PROJECTS' | 'MANAGE_TRANSACTIONS' | 'MANAGE_ROLES' | 'VIEW_REPORTS' | 'MANAGE_ENTITIES' | 'MANAGE_DOCUMENTS' | 'MANAGE_BANK_ACCOUNTS' | 'MANAGE_INVOICES';
+export type PermissionType = 'VIEW_DASHBOARD' | 'MANAGE_COMPANIES' | 'MANAGE_PROJECTS' | 'MANAGE_TRANSACTIONS' | 'MANAGE_ROLES' | 'VIEW_REPORTS' | 'MANAGE_ENTITIES' | 'MANAGE_DOCUMENTS' | 'MANAGE_BANK_ACCOUNTS' | 'MANAGE_INVOICES' | 'MANAGE_TAXES';
 export type EntityType = 'customer' | 'supplier' | 'subcontractor' | 'employee' | 'other';
 export type ProjectStatus = 'active' | 'completed' | 'hold' | 'cancelled';
 export type ProjectPriority = 'low' | 'medium' | 'high';

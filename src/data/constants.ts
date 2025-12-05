@@ -38,6 +38,9 @@ export const PERMISSIONS_LIST: { key: PermissionType; label: string }[] = [
   { key: 'MANAGE_ROLES', label: 'Kullanıcı ve Rol Yönetimi' },
   { key: 'VIEW_REPORTS', label: 'Finansal Raporlama' },
   { key: 'MANAGE_DOCUMENTS', label: 'Döküman Yönetimi' },
+  { key: 'MANAGE_TAXES', label: 'Vergi Yönetimi' },
+  { key: 'MANAGE_BANK_ACCOUNTS', label: 'Banka Hesap Yönetimi' },
+  { key: 'MANAGE_INVOICES', label: 'Fatura ve Ödeme Yönetimi' },
 ];
 
 export const CONTRACT_STATUS_LABELS: Record<ContractStatus, { label: string, color: string, icon: any }> = {
@@ -60,13 +63,13 @@ export const INITIAL_ROLES: Role[] = [
     id: 'admin',
     name: 'Süper Yönetici',
     description: 'Tüm sisteme tam erişim',
-    permissions: ['VIEW_DASHBOARD', 'MANAGE_COMPANIES', 'MANAGE_ENTITIES', 'MANAGE_PROJECTS', 'MANAGE_TRANSACTIONS', 'MANAGE_ROLES', 'VIEW_REPORTS', 'MANAGE_DOCUMENTS']
+    permissions: ['VIEW_DASHBOARD', 'MANAGE_COMPANIES', 'MANAGE_ENTITIES', 'MANAGE_PROJECTS', 'MANAGE_TRANSACTIONS', 'MANAGE_ROLES', 'VIEW_REPORTS', 'MANAGE_DOCUMENTS', 'MANAGE_TAXES', 'MANAGE_BANK_ACCOUNTS', 'MANAGE_INVOICES']
   },
   {
     id: 'acc',
     name: 'Muhasebe Müdürü',
     description: 'Finansal işlemler ve raporlar',
-    permissions: ['VIEW_DASHBOARD', 'MANAGE_ENTITIES', 'MANAGE_TRANSACTIONS', 'VIEW_REPORTS']
+    permissions: ['VIEW_DASHBOARD', 'MANAGE_ENTITIES', 'MANAGE_TRANSACTIONS', 'VIEW_REPORTS', 'MANAGE_TAXES', 'MANAGE_BANK_ACCOUNTS', 'MANAGE_INVOICES']
   },
   {
     id: 'pm',

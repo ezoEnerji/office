@@ -401,7 +401,7 @@ const App = () => {
         )}
 
         {activeTab === 'taxes' && (
-          hasPermission('MANAGE_TRANSACTIONS') 
+          hasPermission('MANAGE_TAXES') 
             ? <TaxManagement 
                 taxes={taxes}
                 setTaxes={setTaxes}
