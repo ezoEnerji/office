@@ -419,6 +419,19 @@ const App = () => {
               /> 
             : <Unauthorized />
         )}
+
+        {activeTab === 'invoices' && (
+          hasPermission('MANAGE_INVOICES') 
+            ? <InvoiceManagement 
+                companies={companies}
+                projects={projects}
+                entities={entities}
+                contracts={contracts}
+                hasPermission={hasPermission}
+                onRefresh={() => refreshData('invoices')}
+              /> 
+            : <Unauthorized />
+        )}
       </main>
     </div>
   );

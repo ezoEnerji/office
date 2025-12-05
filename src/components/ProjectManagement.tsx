@@ -113,6 +113,7 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
   // Bank accounts and cards for selected project's company
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [bankCards, setBankCards] = useState<BankCard[]>([]);
+  const [invoices, setInvoices] = useState<any[]>([]);
   
   // Load bank accounts and cards when project changes
   useEffect(() => {
@@ -120,10 +121,12 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
       const projectCompany = companies.find(c => c.id === selectedProject.companyId);
       if (projectCompany) {
         loadBankData(projectCompany.id);
+        loadInvoices(projectCompany.id);
       }
     } else {
       setBankAccounts([]);
       setBankCards([]);
+      setInvoices([]);
     }
   }, [selectedProject, companies]);
   
@@ -137,6 +140,15 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
       setBankCards(cards.filter(c => c.isActive));
     } catch (error: any) {
       console.error('Banka verileri yüklenirken hata:', error);
+    }
+  };
+  
+  const loadInvoices = async (companyId: string) => {
+    try {
+      const data = await apiService.getInvoices({ companyId });
+      setInvoices(data);
+    } catch (error: any) {
+      console.error('Faturalar yüklenirken hata:', error);
     }
   };
   
