@@ -78,7 +78,6 @@ model Entity {
   contracts Contract[]
   transactions Transaction[]
   invoices Invoice[]
-}
 
   @@index([type, status])
 }
@@ -110,7 +109,6 @@ model Project {
   transactions Transaction[]
   documents Document[]
   invoices Invoice[]
-}
 
   @@index([companyId, status])
 }
@@ -140,7 +138,6 @@ model Contract {
   entity      Entity       @relation(fields: [entityId], references: [id])
   transactions Transaction[]
   invoices    Invoice[]
-}
 
   @@index([projectId, status])
 }
