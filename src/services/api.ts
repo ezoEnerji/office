@@ -323,30 +323,6 @@ class ApiService {
     return this.getDocuments();
   }
 
-  // Get all documents from database
-  async getDocuments(category?: string, relatedId?: string) {
-    const params = new URLSearchParams();
-    if (category) params.append('category', category);
-    if (relatedId) params.append('relatedId', relatedId);
-    const query = params.toString();
-    return this.request<any[]>(`/documents${query ? `?${query}` : ''}`);
-  }
-
-  // Upload document (Google Drive)
-  async uploadDocument(
-    file: File,
-    options: {
-      category: string;
-      relatedId?: string;
-      name?: string;
-    }
-  ): Promise<{ fileId: string; fileName: string; webViewLink: string; downloadUrl: string }> {
-    return this.uploadToGoogleDrive(file, {
-      category: 'document',
-      documentName: options.category
-    });
-  }
-
   // Delete file from Google Drive
   async deleteGoogleDriveFile(fileId: string) {
     return this.request(`/googledrive/${fileId}`, { method: 'DELETE' });
