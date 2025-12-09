@@ -4,7 +4,7 @@ import {
   DollarSign, Briefcase, Users, FileSignature, BarChart3, PieChart,
   ArrowUpRight, ArrowDownRight, Search, X, Settings, Save
 } from 'lucide-react';
-import { Transaction, Project, Company, Entity, Contract, User } from '../types';
+import { Transaction, Project, Company, Entity, Contract, User, Currency } from '../types';
 import { formatCurrency } from '../utils/helpers';
 import { format, subDays, subMonths, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns';
 import { tr } from 'date-fns/locale';
@@ -61,6 +61,7 @@ export const Reports: React.FC<ReportsProps> = ({
   });
   const [showFilters, setShowFilters] = useState(false);
   const [selectedColumns, setSelectedColumns] = useState<string[]>([]);
+  const [reportCurrency, setReportCurrency] = useState<Currency | 'TRY'>('TRY'); // Rapor gösterim para birimi
 
   // Tarih aralığı hesaplama
   const getDateRange = (range: DateRange) => {
@@ -119,61 +120,139 @@ export const Reports: React.FC<ReportsProps> = ({
     return filtered;
   }, [transactions, filters, projects]);
 
-  // Finansal Özet
+  // Finansal Özet - Çoklu döviz desteği ile
   const financialSummary = useMemo(() => {
-    const income = filteredData
-      .filter(t => t.type === 'income')
-      .reduce((sum, t) => sum + (t.amount * t.exchangeRate), 0);
-    
-    const expense = filteredData
-      .filter(t => t.type === 'expense')
-      .reduce((sum, t) => sum + (t.amount * t.exchangeRate), 0);
-
-    const taxes = filteredData.reduce((sum, t) => {
-      if (t.taxes) {
-        const taxAmount = t.taxes.reduce((s, tax) => s + (tax.amount * t.exchangeRate), 0);
-        return sum + taxAmount;
+    // Para birimine göre grupla
+    const byCurrency = filteredData.reduce((acc, t) => {
+      if (!acc[t.currency]) {
+        acc[t.currency] = { income: 0, expense: 0, taxes: 0, transactions: [] };
       }
-      return sum;
-    }, 0);
+      acc[t.currency].transactions.push(t);
+      return acc;
+    }, {} as Record<Currency, { income: number; expense: number; taxes: number; transactions: Transaction[] }>);
 
-    // KDV Analizi
-    const vatAnalysis = {
-      totalVatIncluded: filteredData
-        .filter(t => t.isVatIncluded)
-        .reduce((sum, t) => sum + (t.amount * t.exchangeRate), 0),
-      totalVatExcluded: filteredData
-        .filter(t => !t.isVatIncluded)
-        .reduce((sum, t) => sum + (t.amount * t.exchangeRate), 0),
-      incomeVat: filteredData
+    // Her para birimi için hesapla
+    const currencySummaries: Record<Currency, any> = {} as any;
+    
+    (['TRY', 'USD', 'EUR', 'GBP'] as Currency[]).forEach(currency => {
+      const data = byCurrency[currency] || { income: 0, expense: 0, taxes: 0, transactions: [] };
+      
+      const income = data.transactions
         .filter(t => t.type === 'income')
-        .reduce((sum, t) => {
-          if (t.taxes) {
-            return sum + t.taxes.reduce((s, tax) => s + (tax.amount * t.exchangeRate), 0);
-          }
-          return sum;
-        }, 0),
-      expenseVat: filteredData
+        .reduce((sum, t) => sum + t.amount, 0);
+      
+      const expense = data.transactions
         .filter(t => t.type === 'expense')
-        .reduce((sum, t) => {
-          if (t.taxes) {
-            return sum + t.taxes.reduce((s, tax) => s + (tax.amount * t.exchangeRate), 0);
-          }
-          return sum;
-        }, 0),
-      netVat: 0
+        .reduce((sum, t) => sum + t.amount, 0);
+
+      const taxes = data.transactions.reduce((sum, t) => {
+        if (t.taxes) {
+          return sum + t.taxes.reduce((s, tax) => s + tax.amount, 0);
+        }
+        return sum;
+      }, 0);
+
+      // KDV Analizi
+      const vatAnalysis = {
+        totalVatIncluded: data.transactions
+          .filter(t => t.isVatIncluded)
+          .reduce((sum, t) => sum + t.amount, 0),
+        totalVatExcluded: data.transactions
+          .filter(t => !t.isVatIncluded)
+          .reduce((sum, t) => sum + t.amount, 0),
+        incomeVat: data.transactions
+          .filter(t => t.type === 'income')
+          .reduce((sum, t) => {
+            if (t.taxes) {
+              return sum + t.taxes.reduce((s, tax) => s + tax.amount, 0);
+            }
+            return sum;
+          }, 0),
+        expenseVat: data.transactions
+          .filter(t => t.type === 'expense')
+          .reduce((sum, t) => {
+            if (t.taxes) {
+              return sum + t.taxes.reduce((s, tax) => s + tax.amount, 0);
+            }
+            return sum;
+          }, 0),
+        netVat: 0
+      };
+      vatAnalysis.netVat = vatAnalysis.incomeVat - vatAnalysis.expenseVat;
+
+      currencySummaries[currency] = {
+        income,
+        expense,
+        taxes,
+        net: income - expense, // Net = Gelir - Gider (vergiler ayrı gösterilir)
+        transactionCount: data.transactions.length,
+        vatAnalysis
+      };
+    });
+
+    // Tüm para birimlerini TRY'ye çevirerek toplam hesapla (varsayılan)
+    const totalInTRY = {
+      income: filteredData
+        .filter(t => t.type === 'income')
+        .reduce((sum, t) => sum + (t.amount * t.exchangeRate), 0),
+      expense: filteredData
+        .filter(t => t.type === 'expense')
+        .reduce((sum, t) => sum + (t.amount * t.exchangeRate), 0),
+      taxes: filteredData.reduce((sum, t) => {
+        if (t.taxes) {
+          return sum + t.taxes.reduce((s, tax) => s + (tax.amount * t.exchangeRate), 0);
+        }
+        return sum;
+      }, 0),
+      vatAnalysis: {
+        totalVatIncluded: filteredData
+          .filter(t => t.isVatIncluded)
+          .reduce((sum, t) => sum + (t.amount * t.exchangeRate), 0),
+        totalVatExcluded: filteredData
+          .filter(t => !t.isVatIncluded)
+          .reduce((sum, t) => sum + (t.amount * t.exchangeRate), 0),
+        incomeVat: filteredData
+          .filter(t => t.type === 'income')
+          .reduce((sum, t) => {
+            if (t.taxes) {
+              return sum + t.taxes.reduce((s, tax) => s + (tax.amount * t.exchangeRate), 0);
+            }
+            return sum;
+          }, 0),
+        expenseVat: filteredData
+          .filter(t => t.type === 'expense')
+          .reduce((sum, t) => {
+            if (t.taxes) {
+              return sum + t.taxes.reduce((s, tax) => s + (tax.amount * t.exchangeRate), 0);
+            }
+            return sum;
+          }, 0),
+        netVat: 0
+      },
+      transactionCount: filteredData.length
     };
-    vatAnalysis.netVat = vatAnalysis.incomeVat - vatAnalysis.expenseVat;
+    totalInTRY.vatAnalysis.netVat = totalInTRY.vatAnalysis.incomeVat - totalInTRY.vatAnalysis.expenseVat;
+    totalInTRY.net = totalInTRY.income - totalInTRY.expense;
+
+    // Seçili para birimi için özet
+    const selectedSummary = reportCurrency === 'TRY' 
+      ? { ...totalInTRY, currency: 'TRY' as Currency }
+      : (currencySummaries[reportCurrency] || {
+          income: 0,
+          expense: 0,
+          taxes: 0,
+          net: 0,
+          transactionCount: 0,
+          vatAnalysis: { totalVatIncluded: 0, totalVatExcluded: 0, incomeVat: 0, expenseVat: 0, netVat: 0 },
+          currency: reportCurrency
+        });
 
     return {
-      income,
-      expense,
-      taxes,
-      net: income - expense - taxes,
-      transactionCount: filteredData.length,
-      vatAnalysis
+      ...selectedSummary,
+      byCurrency: currencySummaries, // Tüm para birimleri için ayrı özetler
+      totalInTRY // TRY'de toplam (karşılaştırma için)
     };
-  }, [filteredData]);
+  }, [filteredData, reportCurrency]);
 
   // Aylık trend verisi
   const monthlyTrend = useMemo(() => {
@@ -256,10 +335,10 @@ export const Reports: React.FC<ReportsProps> = ({
       return acc;
     }, {} as Record<string, any>);
 
-    return Object.values(grouped).map((p: any) => ({
+      return Object.values(grouped).map((p: any) => ({
       ...p,
       net: p.income - p.expense,
-      budgetUtilization: ((p.income + p.expense) / p.budget) * 100
+      budgetUtilization: p.budget > 0 ? (p.expense / p.budget) * 100 : 0 // Sadece gider/bütçe
     })).sort((a: any, b: any) => b.net - a.net);
   }, [filteredData, projects]);
 
@@ -337,6 +416,63 @@ export const Reports: React.FC<ReportsProps> = ({
 
   const exportToPDF = () => {
     window.print();
+  };
+
+  // Özel rapor CSV export fonksiyonu
+  const exportCustomReportToCSV = () => {
+    const cols = selectedColumns.length === 0 
+      ? ['date', 'project', 'type', 'category', 'amount', 'currency', 'amountTRY', 'description']
+      : selectedColumns;
+
+    const colLabels: Record<string, string> = {
+      date: 'Tarih',
+      project: 'Proje',
+      type: 'Tip',
+      category: 'Kategori',
+      amount: 'Tutar',
+      currency: 'Para Birimi',
+      exchangeRate: 'Kur',
+      amountTRY: 'TRY Tutarı',
+      vat: 'KDV',
+      totalAmount: 'Toplam',
+      description: 'Açıklama',
+      invoiceNumber: 'Fatura No',
+      bankAccount: 'Banka Hesabı',
+      bankCard: 'Banka Kartı',
+      entity: 'Cari Hesap',
+      company: 'Şirket'
+    };
+
+    const headers = cols.map(col => colLabels[col] || col);
+    const rows = filteredData.map(t => {
+      const project = projects.find(p => p.id === t.projectId);
+      const company = project ? companies.find(c => c.id === project.companyId) : null;
+      const totalTax = t.taxes ? t.taxes.reduce((sum, tax) => sum + (tax.amount * t.exchangeRate), 0) : 0;
+      const totalAmount = (t.amount * t.exchangeRate) + totalTax;
+      
+      const rowData: Record<string, any> = {
+        date: format(new Date(t.date), 'dd.MM.yyyy'),
+        project: project?.name || '-',
+        type: t.type === 'income' ? 'Gelir' : 'Gider',
+        category: t.category,
+        amount: t.amount.toFixed(2),
+        currency: t.currency,
+        exchangeRate: t.exchangeRate.toFixed(4),
+        amountTRY: (t.amount * t.exchangeRate).toFixed(2),
+        vat: totalTax.toFixed(2),
+        totalAmount: totalAmount.toFixed(2),
+        description: t.description || '',
+        invoiceNumber: t.invoiceNumber || '',
+        bankAccount: t.bankAccount?.accountName || '',
+        bankCard: t.bankCard?.cardName || '',
+        entity: project?.customerId ? entities.find(e => e.id === project.customerId)?.name || '' : '',
+        company: company?.name || ''
+      };
+
+      return cols.map(col => rowData[col] || '');
+    });
+
+    return [headers, ...rows].map(row => row.join(',')).join('\n');
   };
 
   const handleDateRangeChange = (range: DateRange) => {
@@ -451,9 +587,9 @@ export const Reports: React.FC<ReportsProps> = ({
               </>
             )}
 
-            {/* Para Birimi */}
+            {/* Para Birimi Filtresi */}
             <div>
-              <label className="block text-xs text-slate-500 mb-1">Para Birimi</label>
+              <label className="block text-xs text-slate-500 mb-1">Para Birimi (Filtre)</label>
               <select
                 className="w-full p-2 border rounded-lg text-sm"
                 value={filters.currency}
@@ -465,6 +601,22 @@ export const Reports: React.FC<ReportsProps> = ({
                 <option value="EUR">EUR</option>
                 <option value="GBP">GBP</option>
               </select>
+            </div>
+
+            {/* Rapor Gösterim Para Birimi */}
+            <div>
+              <label className="block text-xs text-slate-500 mb-1">Rapor Para Birimi</label>
+              <select
+                className="w-full p-2 border rounded-lg text-sm"
+                value={reportCurrency}
+                onChange={(e) => setReportCurrency(e.target.value as Currency)}
+              >
+                <option value="TRY">TRY (Tümü TRY'ye çevrilmiş toplam)</option>
+                <option value="USD">USD</option>
+                <option value="EUR">EUR</option>
+                <option value="GBP">GBP</option>
+              </select>
+              <p className="text-xs text-slate-400 mt-1">Raporların hangi para biriminde gösterileceği</p>
             </div>
 
             {/* İşlem Tipi */}
@@ -568,7 +720,16 @@ export const Reports: React.FC<ReportsProps> = ({
                 <span className="text-sm text-slate-500">Toplam Gelir (KDV Hariç)</span>
                 <TrendingUp className="text-green-500" size={20} />
               </div>
-              <div className="text-2xl font-bold text-slate-800">{formatCurrency(financialSummary.income)}</div>
+              <div className="text-2xl font-bold text-slate-800">
+                {formatCurrency(financialSummary.income, reportCurrency === 'TRY' ? 'TRY' : reportCurrency)}
+              </div>
+              {reportCurrency === 'TRY' && financialSummary.byCurrency && (
+                <div className="text-xs text-slate-400 mt-1">
+                  {Object.entries(financialSummary.byCurrency).map(([curr, data]: [string, any]) => 
+                    data.income > 0 ? `${formatCurrency(data.income, curr as Currency)} ` : ''
+                  )}
+                </div>
+              )}
               {financialSummary.vatAnalysis.incomeVat > 0 && (
                 <div className="text-xs text-green-600 mt-1">+ {formatCurrency(financialSummary.vatAnalysis.incomeVat)} KDV</div>
               )}
@@ -580,9 +741,20 @@ export const Reports: React.FC<ReportsProps> = ({
                 <span className="text-sm text-slate-500">Toplam Gider (KDV Hariç)</span>
                 <TrendingDown className="text-red-500" size={20} />
               </div>
-              <div className="text-2xl font-bold text-slate-800">{formatCurrency(financialSummary.expense)}</div>
+              <div className="text-2xl font-bold text-slate-800">
+                {formatCurrency(financialSummary.expense, reportCurrency === 'TRY' ? 'TRY' : reportCurrency)}
+              </div>
+              {reportCurrency === 'TRY' && financialSummary.byCurrency && (
+                <div className="text-xs text-slate-400 mt-1">
+                  {Object.entries(financialSummary.byCurrency).map(([curr, data]: [string, any]) => 
+                    data.expense > 0 ? `${formatCurrency(data.expense, curr as Currency)} ` : ''
+                  )}
+                </div>
+              )}
               {financialSummary.vatAnalysis.expenseVat > 0 && (
-                <div className="text-xs text-red-600 mt-1">+ {formatCurrency(financialSummary.vatAnalysis.expenseVat)} KDV</div>
+                <div className="text-xs text-red-600 mt-1">
+                  + {formatCurrency(financialSummary.vatAnalysis.expenseVat, reportCurrency === 'TRY' ? 'TRY' : reportCurrency)} KDV
+                </div>
               )}
             </div>
 
@@ -591,10 +763,12 @@ export const Reports: React.FC<ReportsProps> = ({
                 <span className="text-sm text-slate-500">Toplam KDV</span>
                 <FileText className="text-orange-500" size={20} />
               </div>
-              <div className="text-2xl font-bold text-slate-800">{formatCurrency(financialSummary.taxes)}</div>
+              <div className="text-2xl font-bold text-slate-800">
+                {formatCurrency(financialSummary.taxes, reportCurrency === 'TRY' ? 'TRY' : reportCurrency)}
+              </div>
               <div className="text-xs text-slate-400 mt-1">
-                Gelir: {formatCurrency(financialSummary.vatAnalysis.incomeVat)} | 
-                Gider: {formatCurrency(financialSummary.vatAnalysis.expenseVat)}
+                Gelir: {formatCurrency(financialSummary.vatAnalysis.incomeVat, reportCurrency === 'TRY' ? 'TRY' : reportCurrency)} | 
+                Gider: {formatCurrency(financialSummary.vatAnalysis.expenseVat, reportCurrency === 'TRY' ? 'TRY' : reportCurrency)}
               </div>
             </div>
 
@@ -608,7 +782,7 @@ export const Reports: React.FC<ReportsProps> = ({
                 )}
               </div>
               <div className={`text-2xl font-bold ${financialSummary.net >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-                {formatCurrency(financialSummary.net)}
+                {formatCurrency(financialSummary.net, reportCurrency === 'TRY' ? 'TRY' : reportCurrency)}
               </div>
               <div className="text-xs text-slate-400 mt-1">Kar / Zarar</div>
             </div>
@@ -618,7 +792,9 @@ export const Reports: React.FC<ReportsProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="bg-white rounded-xl border border-slate-200 p-5">
               <p className="text-slate-500 text-xs mb-1">KDV Dahil İşlemler</p>
-              <h3 className="text-xl font-bold text-slate-800">{formatCurrency(financialSummary.vatAnalysis.totalVatIncluded)}</h3>
+              <h3 className="text-xl font-bold text-slate-800">
+                {formatCurrency(financialSummary.vatAnalysis.totalVatIncluded, reportCurrency === 'TRY' ? 'TRY' : reportCurrency)}
+              </h3>
               <p className="text-xs text-slate-400 mt-1">
                 {filteredData.filter(t => t.isVatIncluded).length} işlem
               </p>
@@ -626,7 +802,9 @@ export const Reports: React.FC<ReportsProps> = ({
 
             <div className="bg-white rounded-xl border border-slate-200 p-5">
               <p className="text-slate-500 text-xs mb-1">KDV Hariç İşlemler</p>
-              <h3 className="text-xl font-bold text-slate-800">{formatCurrency(financialSummary.vatAnalysis.totalVatExcluded)}</h3>
+              <h3 className="text-xl font-bold text-slate-800">
+                {formatCurrency(financialSummary.vatAnalysis.totalVatExcluded, reportCurrency === 'TRY' ? 'TRY' : reportCurrency)}
+              </h3>
               <p className="text-xs text-slate-400 mt-1">
                 {filteredData.filter(t => !t.isVatIncluded).length} işlem
               </p>
@@ -634,14 +812,17 @@ export const Reports: React.FC<ReportsProps> = ({
 
             <div className="bg-white rounded-xl border border-slate-200 p-5">
               <p className="text-slate-500 text-xs mb-1">Gelir KDV</p>
-              <h3 className="text-xl font-bold text-green-600">{formatCurrency(financialSummary.vatAnalysis.incomeVat)}</h3>
+              <h3 className="text-xl font-bold text-green-600">
+                {formatCurrency(financialSummary.vatAnalysis.incomeVat, reportCurrency === 'TRY' ? 'TRY' : reportCurrency)}
+              </h3>
               <p className="text-xs text-slate-400 mt-1">Tahsil edilen</p>
             </div>
 
             <div className={`rounded-xl border p-5 ${financialSummary.vatAnalysis.netVat >= 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
               <p className="text-slate-500 text-xs mb-1">Net KDV Durumu</p>
               <h3 className={`text-xl font-bold ${financialSummary.vatAnalysis.netVat >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-                {financialSummary.vatAnalysis.netVat >= 0 ? '+' : ''}{formatCurrency(financialSummary.vatAnalysis.netVat)}
+                {financialSummary.vatAnalysis.netVat >= 0 ? '+' : ''}
+                {formatCurrency(financialSummary.vatAnalysis.netVat, reportCurrency === 'TRY' ? 'TRY' : reportCurrency)}
               </h3>
               <p className="text-xs text-slate-500 mt-1">
                 {financialSummary.vatAnalysis.netVat >= 0 ? 'Ödenecek' : 'İade Edilecek'}
@@ -913,7 +1094,7 @@ export const Reports: React.FC<ReportsProps> = ({
                   data={[
                     { name: 'Aktif', value: contracts.filter(c => c.status === 'active').length },
                     { name: 'Tamamlandı', value: contracts.filter(c => c.status === 'completed').length },
-                    { name: 'Beklemede', value: contracts.filter(c => c.status === 'pending').length },
+                    { name: 'Taslak', value: contracts.filter(c => c.status === 'draft').length },
                     { name: 'İptal', value: contracts.filter(c => c.status === 'cancelled').length }
                   ]}
                   cx="50%"
@@ -971,11 +1152,178 @@ export const Reports: React.FC<ReportsProps> = ({
 
       {/* CUSTOM REPORTS */}
       {activeReportType === 'custom' && (
-        <div className="bg-white rounded-xl border border-slate-200 p-6">
-          <h3 className="font-semibold text-slate-800 mb-4">Özel Rapor Oluştur</h3>
-          <p className="text-slate-500">Bu özellik yakında eklenecektir.</p>
+        <div className="space-y-6">
+          <div className="bg-white rounded-xl border border-slate-200 p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-semibold text-slate-800">Özel Rapor Oluştur</h3>
+              <button
+                onClick={() => {
+                  const csv = exportCustomReportToCSV();
+                  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+                  const link = document.createElement('a');
+                  link.href = URL.createObjectURL(blob);
+                  link.download = `ozel_rapor_${format(new Date(), 'yyyy-MM-dd')}.csv`;
+                  link.click();
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 flex items-center gap-2"
+              >
+                <Download size={16} />
+                Raporu İndir
+              </button>
+            </div>
+
+            {/* Kolon Seçimi */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-slate-700 mb-3">Gösterilecek Kolonlar</label>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {[
+                  { key: 'date', label: 'Tarih' },
+                  { key: 'project', label: 'Proje' },
+                  { key: 'type', label: 'Tip' },
+                  { key: 'category', label: 'Kategori' },
+                  { key: 'amount', label: 'Tutar' },
+                  { key: 'currency', label: 'Para Birimi' },
+                  { key: 'exchangeRate', label: 'Kur' },
+                  { key: 'amountTRY', label: 'TRY Tutarı' },
+                  { key: 'vat', label: 'KDV' },
+                  { key: 'totalAmount', label: 'Toplam Tutar' },
+                  { key: 'description', label: 'Açıklama' },
+                  { key: 'invoiceNumber', label: 'Fatura No' },
+                  { key: 'bankAccount', label: 'Banka Hesabı' },
+                  { key: 'bankCard', label: 'Banka Kartı' },
+                  { key: 'entity', label: 'Cari Hesap' },
+                  { key: 'company', label: 'Şirket' }
+                ].map(col => (
+                  <label key={col.key} className="flex items-center gap-2 p-2 border border-slate-200 rounded-lg hover:bg-slate-50 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={selectedColumns.includes(col.key) || selectedColumns.length === 0}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedColumns([...selectedColumns, col.key]);
+                        } else {
+                          setSelectedColumns(selectedColumns.filter(c => c !== col.key));
+                        }
+                      }}
+                      className="w-4 h-4 text-blue-600 border-slate-300 rounded"
+                    />
+                    <span className="text-sm text-slate-700">{col.label}</span>
+                  </label>
+                ))}
+              </div>
+              <div className="mt-3 flex gap-2">
+                <button
+                  onClick={() => setSelectedColumns([
+                    'date', 'project', 'type', 'category', 'amount', 'currency', 'amountTRY', 'description'
+                  ])}
+                  className="text-xs px-3 py-1 bg-slate-100 text-slate-700 rounded hover:bg-slate-200"
+                >
+                  Varsayılan Seç
+                </button>
+                <button
+                  onClick={() => setSelectedColumns([])}
+                  className="text-xs px-3 py-1 bg-slate-100 text-slate-700 rounded hover:bg-slate-200"
+                >
+                  Tümünü Temizle
+                </button>
+                <button
+                  onClick={() => setSelectedColumns([
+                    'date', 'project', 'type', 'category', 'amount', 'currency', 'exchangeRate', 
+                    'amountTRY', 'vat', 'totalAmount', 'description', 'invoiceNumber', 'bankAccount', 
+                    'bankCard', 'entity', 'company'
+                  ])}
+                  className="text-xs px-3 py-1 bg-slate-100 text-slate-700 rounded hover:bg-slate-200"
+                >
+                  Tümünü Seç
+                </button>
+              </div>
+            </div>
+
+            {/* Özel Rapor Tablosu */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm border-collapse">
+                <thead className="bg-slate-50 text-slate-500">
+                  <tr>
+                    {(selectedColumns.length === 0 ? ['date', 'project', 'type', 'category', 'amount', 'currency', 'amountTRY', 'description'] : selectedColumns).map(col => {
+                      const colLabels: Record<string, string> = {
+                        date: 'Tarih',
+                        project: 'Proje',
+                        type: 'Tip',
+                        category: 'Kategori',
+                        amount: 'Tutar',
+                        currency: 'Para Birimi',
+                        exchangeRate: 'Kur',
+                        amountTRY: 'TRY Tutarı',
+                        vat: 'KDV',
+                        totalAmount: 'Toplam',
+                        description: 'Açıklama',
+                        invoiceNumber: 'Fatura No',
+                        bankAccount: 'Banka Hesabı',
+                        bankCard: 'Banka Kartı',
+                        entity: 'Cari Hesap',
+                        company: 'Şirket'
+                      };
+                      return (
+                        <th key={col} className="p-3 text-left font-medium border border-slate-200">
+                          {colLabels[col] || col}
+                        </th>
+                      );
+                    })}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredData.slice(0, 100).map(t => {
+                    const project = projects.find(p => p.id === t.projectId);
+                    const company = project ? companies.find(c => c.id === project.companyId) : null;
+                    const totalTax = t.taxes ? t.taxes.reduce((sum, tax) => sum + (tax.amount * t.exchangeRate), 0) : 0;
+                    const totalAmount = (t.amount * t.exchangeRate) + totalTax;
+                    
+                    const rowData: Record<string, any> = {
+                      date: format(new Date(t.date), 'dd.MM.yyyy'),
+                      project: project?.name || '-',
+                      type: t.type === 'income' ? 'Gelir' : 'Gider',
+                      category: t.category,
+                      amount: formatCurrency(t.amount, t.currency),
+                      currency: t.currency,
+                      exchangeRate: t.exchangeRate.toFixed(4),
+                      amountTRY: formatCurrency(t.amount * t.exchangeRate, 'TRY'),
+                      vat: totalTax > 0 ? formatCurrency(totalTax, 'TRY') : '-',
+                      totalAmount: formatCurrency(totalAmount, 'TRY'),
+                      description: t.description,
+                      invoiceNumber: t.invoiceNumber || '-',
+                      bankAccount: t.bankAccount?.accountName || '-',
+                      bankCard: t.bankCard?.cardName || '-',
+                      entity: project?.customerId ? entities.find(e => e.id === project.customerId)?.name || '-' : '-',
+                      company: company?.name || '-'
+                    };
+
+                    const cols = selectedColumns.length === 0 
+                      ? ['date', 'project', 'type', 'category', 'amount', 'currency', 'amountTRY', 'description']
+                      : selectedColumns;
+
+                    return (
+                      <tr key={t.id} className="hover:bg-slate-50">
+                        {cols.map(col => (
+                          <td key={col} className="p-3 text-slate-600 border border-slate-200">
+                            {rowData[col] || '-'}
+                          </td>
+                        ))}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {filteredData.length > 100 && (
+              <div className="mt-4 text-sm text-slate-500 text-center">
+                Toplam {filteredData.length} kayıt bulundu. İlk 100 kayıt gösteriliyor.
+              </div>
+            )}
+          </div>
         </div>
       )}
+
     </div>
   );
 };
