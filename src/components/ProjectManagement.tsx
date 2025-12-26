@@ -127,6 +127,7 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
   const [invoiceTypeFilter, setInvoiceTypeFilter] = useState<'all' | 'incoming' | 'outgoing'>('all');
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState<string>('all');
   const [invoiceEntityFilter, setInvoiceEntityFilter] = useState<string>('all');
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   
   // Load bank accounts and cards when project changes
   useEffect(() => {
@@ -1916,9 +1917,18 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                                    {projectInvoices.map(invoice => {
                                       const entity = entities.find(e => e.id === invoice.entityId);
                                       const isOverdue = invoice.dueDate && new Date(invoice.dueDate) < new Date() && invoice.status !== 'paid';
+                                      const isSelected = selectedInvoiceId === invoice.id;
                                       
                                       return (
-                                         <div key={invoice.id} className="p-4 hover:bg-slate-50 transition cursor-pointer">
+                                         <div 
+                                            key={invoice.id} 
+                                            className={`p-4 transition cursor-pointer border-l-4 ${
+                                               isSelected 
+                                                  ? 'bg-blue-50 border-blue-500 hover:bg-blue-100' 
+                                                  : 'hover:bg-slate-50 border-transparent'
+                                            }`}
+                                            onClick={() => setSelectedInvoiceId(isSelected ? null : invoice.id)}
+                                         >
                                             <div className="flex items-start justify-between gap-3">
                                                <div className="flex items-start gap-3 flex-1 min-w-0">
                                                   <div className={`p-2 rounded-lg shrink-0 ${invoice.invoiceType === 'outgoing' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
@@ -1977,6 +1987,11 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                                    const invoice = invoices.find(inv => inv.id === p.invoiceId);
                                    if (!invoice || invoice.projectId !== selectedProject.id) return false;
                                    
+                                   // Apply selected invoice filter - if a specific invoice is selected, show only its payments
+                                   if (selectedInvoiceId && p.invoiceId !== selectedInvoiceId) {
+                                      return false;
+                                   }
+                                   
                                    // Apply entity filter - if entity filter is set, check if invoice belongs to that entity
                                    if (invoiceEntityFilter !== 'all' && invoice.entityId !== invoiceEntityFilter) {
                                       return false;
@@ -2016,12 +2031,23 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                              })()}
                           </div>
                        </div>
-                       <div className="flex-1 overflow-y-auto max-h-[500px]">
+                       <div 
+                          className="flex-1 overflow-y-auto max-h-[500px]"
+                          onClick={() => {
+                             // Clear selection when clicking on empty space
+                             setSelectedInvoiceId(null);
+                          }}
+                       >
                           {(() => {
                              // Filter payments that belong to invoices of this project and apply entity filter
                              const projectPayments = payments.filter(p => {
                                 const invoice = invoices.find(inv => inv.id === p.invoiceId);
                                 if (!invoice || invoice.projectId !== selectedProject.id) return false;
+                                
+                                // Apply selected invoice filter - if a specific invoice is selected, show only its payments
+                                if (selectedInvoiceId && p.invoiceId !== selectedInvoiceId) {
+                                   return false;
+                                }
                                 
                                 // Apply entity filter - if entity filter is set, check if invoice belongs to that entity
                                 if (invoiceEntityFilter !== 'all' && invoice.entityId !== invoiceEntityFilter) {
@@ -2079,7 +2105,11 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                                       const bankCard = bankCards.find(c => c.id === payment.bankCardId);
                                       
                                       return (
-                                         <div key={payment.id} className="p-4 hover:bg-slate-50 transition cursor-pointer">
+                                         <div 
+                                            key={payment.id} 
+                                            className="p-4 hover:bg-slate-50 transition cursor-pointer"
+                                            onClick={(e) => e.stopPropagation()}
+                                         >
                                             <div className="flex items-start justify-between gap-3">
                                                <div className="flex items-start gap-3 flex-1 min-w-0">
                                                   <div className={`p-2 rounded-lg shrink-0 ${payment.status === 'completed' ? 'bg-green-50 text-green-600' : 'bg-yellow-50 text-yellow-600'}`}>
