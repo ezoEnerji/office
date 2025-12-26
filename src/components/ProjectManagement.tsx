@@ -128,6 +128,7 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState<string>('all');
   const [invoiceEntityFilter, setInvoiceEntityFilter] = useState<string>('all');
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
+  const [selectedContractId, setSelectedContractId] = useState<string | null>(null);
   
   // Load bank accounts and cards when project changes
   useEffect(() => {
@@ -1798,8 +1799,10 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                           >
                              <option value="all">Tümü</option>
                              {(() => {
-                                // Get unique entities from project invoices
-                                const projectInvoices = invoices.filter(inv => inv.projectId === selectedProject.id);
+                                // Get unique entities from project invoices (filtered by selected contract if any)
+                                const projectInvoices = invoices
+                                   .filter(inv => inv.projectId === selectedProject.id)
+                                   .filter(inv => selectedContractId === null || inv.contractId === selectedContractId);
                                 const uniqueEntityIds = [...new Set(projectInvoices.map(inv => inv.entityId))];
                                 return uniqueEntityIds.map(entityId => {
                                    const entity = entities.find(e => e.id === entityId);
@@ -1813,10 +1816,14 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                        </div>
                        {/* Stats summary */}
                        {(() => {
-                          const projectInvoices = invoices.filter(inv => inv.projectId === selectedProject.id);
+                          const projectInvoices = invoices
+                             .filter(inv => inv.projectId === selectedProject.id)
+                             .filter(inv => selectedContractId === null || inv.contractId === selectedContractId);
                           const projectPayments = payments.filter(p => {
                              const invoice = invoices.find(inv => inv.id === p.invoiceId);
-                             return invoice?.projectId === selectedProject.id;
+                             if (!invoice || invoice.projectId !== selectedProject.id) return false;
+                             if (selectedContractId && invoice.contractId !== selectedContractId) return false;
+                             return true;
                           });
                           const pendingCount = projectInvoices.filter(inv => inv.status === 'issued' || inv.status === 'overdue').length;
                           const totalPayments = projectPayments.reduce((sum, p) => sum + p.amount, 0);
@@ -1841,9 +1848,117 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                     </div>
                  </div>
 
-                 {/* Two Column Layout: Invoices & Payments */}
-                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* Left Column: Invoices */}
+                 {/* Three Column Layout: Contracts, Invoices & Payments */}
+                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Left Column: Contracts */}
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col">
+                       <div className="p-4 border-b border-slate-100 bg-slate-50 rounded-t-xl">
+                          <div className="flex items-center justify-between">
+                             <h4 className="font-bold text-slate-800 flex items-center gap-2">
+                                <FileSignature size={18} className="text-indigo-600" />
+                                Sözleşmeler
+                             </h4>
+                          </div>
+                       </div>
+                       <div 
+                          className="flex-1 overflow-y-auto max-h-[500px]"
+                          onClick={() => {
+                             // Clear contract selection when clicking on empty space
+                             setSelectedContractId(null);
+                             // Also clear invoice selection when contract selection is cleared
+                             setSelectedInvoiceId(null);
+                          }}
+                       >
+                          {(() => {
+                             // Filter contracts for this project
+                             const projectContracts = contracts.filter(c => c.projectId === selectedProject.id);
+                             
+                             if (projectContracts.length === 0) {
+                                return (
+                                   <div className="p-8 text-center">
+                                      <FileSignature size={40} className="text-slate-200 mx-auto mb-3" />
+                                      <div className="text-slate-400 text-sm">Sözleşme bulunmuyor</div>
+                                   </div>
+                                );
+                             }
+                             
+                             return (
+                                <div className="divide-y divide-slate-100">
+                                   {projectContracts.map(contract => {
+                                      const entity = entities.find(e => e.id === contract.entityId);
+                                      const isSelected = selectedContractId === contract.id;
+                                      
+                                      const statusColors: Record<string, string> = {
+                                         draft: 'bg-slate-100 text-slate-600',
+                                         active: 'bg-green-100 text-green-700',
+                                         completed: 'bg-blue-100 text-blue-700',
+                                         cancelled: 'bg-red-100 text-red-700',
+                                         expired: 'bg-orange-100 text-orange-700'
+                                      };
+                                      
+                                      const statusLabels: Record<string, string> = {
+                                         draft: 'Taslak',
+                                         active: 'Aktif',
+                                         completed: 'Tamamlandı',
+                                         cancelled: 'İptal',
+                                         expired: 'Süresi Doldu'
+                                      };
+                                      
+                                      return (
+                                         <div 
+                                            key={contract.id} 
+                                            className={`p-4 transition cursor-pointer border-l-4 ${
+                                               isSelected 
+                                                  ? 'bg-indigo-50 border-indigo-500 hover:bg-indigo-100' 
+                                                  : 'hover:bg-slate-50 border-transparent'
+                                            }`}
+                                            onClick={(e) => {
+                                               e.stopPropagation();
+                                               setSelectedContractId(isSelected ? null : contract.id);
+                                               // Clear invoice selection when contract changes
+                                               setSelectedInvoiceId(null);
+                                            }}
+                                         >
+                                            <div className="flex items-start justify-between gap-3">
+                                               <div className="flex items-start gap-3 flex-1 min-w-0">
+                                                  <div className={`p-2 rounded-lg shrink-0 bg-indigo-50 text-indigo-600`}>
+                                                     <FileSignature size={16} />
+                                                  </div>
+                                                  <div className="flex-1 min-w-0">
+                                                     <div className="flex items-center gap-2 mb-1">
+                                                        <span className="font-medium text-sm text-slate-800 truncate">{contract.name}</span>
+                                                     </div>
+                                                     <div className="text-xs text-slate-500 truncate font-mono">{contract.code}</div>
+                                                     <div className="text-xs text-slate-400 truncate mt-0.5">{entity?.name || '-'}</div>
+                                                     <div className="flex items-center gap-2 mt-1.5 text-xs">
+                                                        <span className="text-slate-400 flex items-center gap-1">
+                                                           <Calendar size={10} />
+                                                           {new Date(contract.startDate).toLocaleDateString('tr-TR')}
+                                                        </span>
+                                                        <span className="text-slate-400">→</span>
+                                                        <span className="text-slate-400">
+                                                           {new Date(contract.endDate).toLocaleDateString('tr-TR')}
+                                                        </span>
+                                                     </div>
+                                                  </div>
+                                               </div>
+                                               <div className="text-right shrink-0">
+                                                  <div className="font-mono font-bold text-slate-800 text-xs mb-1">{formatCurrency(contract.amount, contract.currency)}</div>
+                                                  <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${statusColors[contract.status]}`}>
+                                                     {statusLabels[contract.status]}
+                                                  </span>
+                                               </div>
+                                            </div>
+                                         </div>
+                                      );
+                                   })}
+                                </div>
+                             );
+                          })()}
+                       </div>
+                    </div>
+
+                    {/* Middle Column: Invoices */}
                     <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col">
                        <div className="p-4 border-b border-slate-100 bg-slate-50 rounded-t-xl">
                           <div className="flex items-center justify-between">
@@ -1854,6 +1969,7 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                              {(() => {
                                 const projectInvoices = invoices
                                    .filter(inv => inv.projectId === selectedProject.id)
+                                   .filter(inv => selectedContractId === null || inv.contractId === selectedContractId)
                                    .filter(inv => invoiceTypeFilter === 'all' || inv.invoiceType === invoiceTypeFilter)
                                    .filter(inv => invoiceStatusFilter === 'all' || inv.status === invoiceStatusFilter)
                                    .filter(inv => invoiceEntityFilter === 'all' || inv.entityId === invoiceEntityFilter);
@@ -1879,10 +1995,17 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                              })()}
                           </div>
                        </div>
-                       <div className="flex-1 overflow-y-auto max-h-[500px]">
+                       <div 
+                          className="flex-1 overflow-y-auto max-h-[500px]"
+                          onClick={() => {
+                             // Clear invoice selection when clicking on empty space
+                             setSelectedInvoiceId(null);
+                          }}
+                       >
                           {(() => {
                              const projectInvoices = invoices
                                 .filter(inv => inv.projectId === selectedProject.id)
+                                .filter(inv => selectedContractId === null || inv.contractId === selectedContractId)
                                 .filter(inv => invoiceTypeFilter === 'all' || inv.invoiceType === invoiceTypeFilter)
                                 .filter(inv => invoiceStatusFilter === 'all' || inv.status === invoiceStatusFilter)
                                 .filter(inv => invoiceEntityFilter === 'all' || inv.entityId === invoiceEntityFilter);
@@ -1927,7 +2050,10 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                                                   ? 'bg-blue-50 border-blue-500 hover:bg-blue-100' 
                                                   : 'hover:bg-slate-50 border-transparent'
                                             }`}
-                                            onClick={() => setSelectedInvoiceId(isSelected ? null : invoice.id)}
+                                            onClick={(e) => {
+                                               e.stopPropagation();
+                                               setSelectedInvoiceId(isSelected ? null : invoice.id);
+                                            }}
                                          >
                                             <div className="flex items-start justify-between gap-3">
                                                <div className="flex items-start gap-3 flex-1 min-w-0">
@@ -1986,6 +2112,11 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                                 const projectPayments = payments.filter(p => {
                                    const invoice = invoices.find(inv => inv.id === p.invoiceId);
                                    if (!invoice || invoice.projectId !== selectedProject.id) return false;
+                                   
+                                   // Apply contract filter - if a contract is selected, show only payments for invoices of that contract
+                                   if (selectedContractId && invoice.contractId !== selectedContractId) {
+                                      return false;
+                                   }
                                    
                                    // Apply selected invoice filter - if a specific invoice is selected, show only its payments
                                    if (selectedInvoiceId && p.invoiceId !== selectedInvoiceId) {
