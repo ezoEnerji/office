@@ -121,6 +121,12 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [bankCards, setBankCards] = useState<BankCard[]>([]);
   const [invoices, setInvoices] = useState<any[]>([]);
+  const [payments, setPayments] = useState<any[]>([]);
+  
+  // Invoices tab filters
+  const [invoiceTypeFilter, setInvoiceTypeFilter] = useState<'all' | 'incoming' | 'outgoing'>('all');
+  const [invoiceStatusFilter, setInvoiceStatusFilter] = useState<string>('all');
+  const [invoiceEntityFilter, setInvoiceEntityFilter] = useState<string>('all');
   
   // Load bank accounts and cards when project changes
   useEffect(() => {
@@ -129,11 +135,13 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
       if (projectCompany) {
         loadBankData(projectCompany.id);
         loadInvoices(projectCompany.id);
+        loadPayments();
       }
     } else {
       setBankAccounts([]);
       setBankCards([]);
       setInvoices([]);
+      setPayments([]);
     }
   }, [selectedProject, companies]);
   
@@ -156,6 +164,15 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
       setInvoices(data);
     } catch (error: any) {
       console.error('Faturalar yüklenirken hata:', error);
+    }
+  };
+  
+  const loadPayments = async () => {
+    try {
+      const data = await apiService.getPayments({});
+      setPayments(data);
+    } catch (error: any) {
+      console.error('Ödemeler yüklenirken hata:', error);
     }
   };
   
@@ -1741,190 +1758,293 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                     </div>
                  </div>
 
-                 {/* Stats Cards */}
-                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    {(() => {
-                       const projectInvoices = invoices.filter(inv => inv.projectId === selectedProject.id);
-                       const incomingInvoices = projectInvoices.filter(inv => inv.invoiceType === 'incoming');
-                       const outgoingInvoices = projectInvoices.filter(inv => inv.invoiceType === 'outgoing');
-                       const totalIncoming = incomingInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
-                       const totalOutgoing = outgoingInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
-                       const pendingInvoices = projectInvoices.filter(inv => inv.status === 'issued' || inv.status === 'overdue');
-                       
-                       return (
-                          <>
-                             <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                                <div className="flex items-center gap-3">
-                                   <div className="p-3 bg-blue-50 text-blue-600 rounded-lg">
-                                      <Receipt size={20} />
-                                   </div>
-                                   <div>
-                                      <div className="text-sm text-slate-500">Toplam Fatura</div>
-                                      <div className="text-2xl font-bold text-slate-800">{projectInvoices.length}</div>
-                                   </div>
+                 {/* Filter Section */}
+                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                    <div className="flex flex-wrap items-center gap-4">
+                       <div className="flex items-center gap-2">
+                          <span className="text-sm text-slate-600">Fatura Türü:</span>
+                          <select 
+                             className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                             value={invoiceTypeFilter}
+                             onChange={(e) => setInvoiceTypeFilter(e.target.value as any)}
+                          >
+                             <option value="all">Tümü</option>
+                             <option value="incoming">Gelen</option>
+                             <option value="outgoing">Giden</option>
+                          </select>
+                       </div>
+                       <div className="flex items-center gap-2">
+                          <span className="text-sm text-slate-600">Durum:</span>
+                          <select 
+                             className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                             value={invoiceStatusFilter}
+                             onChange={(e) => setInvoiceStatusFilter(e.target.value)}
+                          >
+                             <option value="all">Tümü</option>
+                             <option value="draft">Taslak</option>
+                             <option value="issued">Kesildi</option>
+                             <option value="paid">Ödendi</option>
+                             <option value="overdue">Vadesi Geçti</option>
+                             <option value="cancelled">İptal</option>
+                          </select>
+                       </div>
+                       <div className="flex items-center gap-2">
+                          <span className="text-sm text-slate-600">Taraf:</span>
+                          <select 
+                             className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none min-w-[180px]"
+                             value={invoiceEntityFilter}
+                             onChange={(e) => setInvoiceEntityFilter(e.target.value)}
+                          >
+                             <option value="all">Tümü</option>
+                             {(() => {
+                                // Get unique entities from project invoices
+                                const projectInvoices = invoices.filter(inv => inv.projectId === selectedProject.id);
+                                const uniqueEntityIds = [...new Set(projectInvoices.map(inv => inv.entityId))];
+                                return uniqueEntityIds.map(entityId => {
+                                   const entity = entities.find(e => e.id === entityId);
+                                   if (!entity) return null;
+                                   return (
+                                      <option key={entity.id} value={entity.id}>{entity.name}</option>
+                                   );
+                                });
+                             })()}
+                          </select>
+                       </div>
+                       {/* Stats summary */}
+                       {(() => {
+                          const projectInvoices = invoices.filter(inv => inv.projectId === selectedProject.id);
+                          const projectPayments = payments.filter(p => {
+                             const invoice = invoices.find(inv => inv.id === p.invoiceId);
+                             return invoice?.projectId === selectedProject.id;
+                          });
+                          const pendingCount = projectInvoices.filter(inv => inv.status === 'issued' || inv.status === 'overdue').length;
+                          const totalPayments = projectPayments.reduce((sum, p) => sum + p.amount, 0);
+                          
+                          return (
+                             <div className="ml-auto flex items-center gap-6 text-sm">
+                                <div className="flex items-center gap-2">
+                                   <Receipt size={16} className="text-blue-500" />
+                                   <span className="text-slate-600">Fatura: <strong className="text-slate-800">{projectInvoices.length}</strong></span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                   <Wallet size={16} className="text-green-500" />
+                                   <span className="text-slate-600">Ödeme: <strong className="text-green-600">{formatCurrency(totalPayments, selectedProject.agreementCurrency)}</strong></span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                   <AlertCircle size={16} className="text-orange-500" />
+                                   <span className="text-slate-600">Bekleyen: <strong className="text-orange-600">{pendingCount}</strong></span>
                                 </div>
                              </div>
-                             <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                                <div className="flex items-center gap-3">
-                                   <div className="p-3 bg-green-50 text-green-600 rounded-lg">
-                                      <TrendingUp size={20} />
-                                   </div>
-                                   <div>
-                                      <div className="text-sm text-slate-500">Giden Faturalar</div>
-                                      <div className="text-xl font-bold text-green-600">{formatCurrency(totalOutgoing, selectedProject.agreementCurrency)}</div>
-                                      <div className="text-xs text-slate-400">{outgoingInvoices.length} adet</div>
-                                   </div>
-                                </div>
-                             </div>
-                             <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                                <div className="flex items-center gap-3">
-                                   <div className="p-3 bg-red-50 text-red-600 rounded-lg">
-                                      <ArrowRightLeft size={20} />
-                                   </div>
-                                   <div>
-                                      <div className="text-sm text-slate-500">Gelen Faturalar</div>
-                                      <div className="text-xl font-bold text-red-600">{formatCurrency(totalIncoming, selectedProject.agreementCurrency)}</div>
-                                      <div className="text-xs text-slate-400">{incomingInvoices.length} adet</div>
-                                   </div>
-                                </div>
-                             </div>
-                             <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                                <div className="flex items-center gap-3">
-                                   <div className="p-3 bg-orange-50 text-orange-600 rounded-lg">
-                                      <AlertCircle size={20} />
-                                   </div>
-                                   <div>
-                                      <div className="text-sm text-slate-500">Bekleyen Ödeme</div>
-                                      <div className="text-2xl font-bold text-orange-600">{pendingInvoices.length}</div>
-                                   </div>
-                                </div>
-                             </div>
-                          </>
-                       );
-                    })()}
+                          );
+                       })()}
+                    </div>
                  </div>
 
-                 {/* Invoices Table */}
-                 <div className="bg-white rounded-xl shadow-sm border border-slate-200">
-                    <div className="p-5 border-b border-slate-100">
-                       <h4 className="font-bold text-slate-800">Fatura Listesi</h4>
+                 {/* Two Column Layout: Invoices & Payments */}
+                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Left Column: Invoices */}
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col">
+                       <div className="p-4 border-b border-slate-100 bg-slate-50 rounded-t-xl">
+                          <h4 className="font-bold text-slate-800 flex items-center gap-2">
+                             <Receipt size={18} className="text-blue-600" />
+                             Faturalar
+                          </h4>
+                       </div>
+                       <div className="flex-1 overflow-y-auto max-h-[500px]">
+                          {(() => {
+                             const projectInvoices = invoices
+                                .filter(inv => inv.projectId === selectedProject.id)
+                                .filter(inv => invoiceTypeFilter === 'all' || inv.invoiceType === invoiceTypeFilter)
+                                .filter(inv => invoiceStatusFilter === 'all' || inv.status === invoiceStatusFilter)
+                                .filter(inv => invoiceEntityFilter === 'all' || inv.entityId === invoiceEntityFilter);
+                             
+                             const statusColors: Record<string, string> = {
+                                draft: 'bg-slate-100 text-slate-600',
+                                issued: 'bg-blue-100 text-blue-700',
+                                paid: 'bg-green-100 text-green-700',
+                                cancelled: 'bg-red-100 text-red-700',
+                                overdue: 'bg-orange-100 text-orange-700'
+                             };
+                             
+                             const statusLabels: Record<string, string> = {
+                                draft: 'Taslak',
+                                issued: 'Kesildi',
+                                paid: 'Ödendi',
+                                cancelled: 'İptal',
+                                overdue: 'Vadesi Geçti'
+                             };
+                             
+                             if (projectInvoices.length === 0) {
+                                return (
+                                   <div className="p-8 text-center">
+                                      <Receipt size={40} className="text-slate-200 mx-auto mb-3" />
+                                      <div className="text-slate-400 text-sm">Fatura bulunmuyor</div>
+                                   </div>
+                                );
+                             }
+                             
+                             return (
+                                <div className="divide-y divide-slate-100">
+                                   {projectInvoices.map(invoice => {
+                                      const entity = entities.find(e => e.id === invoice.entityId);
+                                      const isOverdue = invoice.dueDate && new Date(invoice.dueDate) < new Date() && invoice.status !== 'paid';
+                                      
+                                      return (
+                                         <div key={invoice.id} className="p-4 hover:bg-slate-50 transition cursor-pointer">
+                                            <div className="flex items-start justify-between gap-3">
+                                               <div className="flex items-start gap-3 flex-1 min-w-0">
+                                                  <div className={`p-2 rounded-lg shrink-0 ${invoice.invoiceType === 'outgoing' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
+                                                     <Receipt size={16} />
+                                                  </div>
+                                                  <div className="flex-1 min-w-0">
+                                                     <div className="flex items-center gap-2 mb-1">
+                                                        <span className="font-mono text-sm font-medium text-slate-800 truncate">{invoice.invoiceNumber}</span>
+                                                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${invoice.invoiceType === 'outgoing' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                                                           {invoice.invoiceType === 'outgoing' ? 'Giden' : 'Gelen'}
+                                                        </span>
+                                                     </div>
+                                                     <div className="text-xs text-slate-500 truncate">{entity?.name || '-'}</div>
+                                                     <div className="flex items-center gap-3 mt-1.5 text-xs">
+                                                        <span className="text-slate-400 flex items-center gap-1">
+                                                           <Calendar size={10} />
+                                                           {new Date(invoice.invoiceDate).toLocaleDateString('tr-TR')}
+                                                        </span>
+                                                        {invoice.dueDate && (
+                                                           <span className={`flex items-center gap-1 ${isOverdue ? 'text-red-600 font-medium' : 'text-slate-400'}`}>
+                                                              <Clock size={10} />
+                                                              {new Date(invoice.dueDate).toLocaleDateString('tr-TR')}
+                                                              {isOverdue && ' (Gecikti)'}
+                                                           </span>
+                                                        )}
+                                                     </div>
+                                                  </div>
+                                               </div>
+                                               <div className="text-right shrink-0">
+                                                  <div className="font-mono font-bold text-slate-800 text-sm">{formatCurrency(invoice.totalAmount, invoice.currency)}</div>
+                                                  <span className={`inline-block mt-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${statusColors[invoice.status]}`}>
+                                                     {statusLabels[invoice.status]}
+                                                  </span>
+                                               </div>
+                                            </div>
+                                         </div>
+                                      );
+                                   })}
+                                </div>
+                             );
+                          })()}
+                       </div>
                     </div>
-                    <div className="overflow-x-auto">
-                       <table className="w-full text-left text-sm">
-                          <thead className="bg-slate-50 text-slate-500">
-                             <tr>
-                                <th className="p-4 font-medium">Fatura No</th>
-                                <th className="p-4 font-medium">Tür</th>
-                                <th className="p-4 font-medium">Tarih</th>
-                                <th className="p-4 font-medium">Vade</th>
-                                <th className="p-4 font-medium">Taraf</th>
-                                <th className="p-4 font-medium">Tutar</th>
-                                <th className="p-4 font-medium">Durum</th>
-                                <th className="p-4 font-medium text-center">İşlemler</th>
-                             </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100">
-                             {invoices.filter(inv => inv.projectId === selectedProject.id).length > 0 ? (
-                                invoices.filter(inv => inv.projectId === selectedProject.id).map(invoice => {
-                                   const entity = entities.find(e => e.id === invoice.entityId);
-                                   
-                                   const statusColors: Record<string, string> = {
-                                      draft: 'bg-slate-100 text-slate-600',
-                                      issued: 'bg-blue-100 text-blue-700',
-                                      paid: 'bg-green-100 text-green-700',
-                                      cancelled: 'bg-red-100 text-red-700',
-                                      overdue: 'bg-orange-100 text-orange-700'
-                                   };
-                                   
-                                   const statusLabels: Record<string, string> = {
-                                      draft: 'Taslak',
-                                      issued: 'Kesildi',
-                                      paid: 'Ödendi',
-                                      cancelled: 'İptal',
-                                      overdue: 'Vadesi Geçti'
-                                   };
-                                   
-                                   return (
-                                      <tr key={invoice.id} className="hover:bg-slate-50 transition">
-                                         <td className="p-4">
-                                            <div className="flex items-center gap-3">
-                                               <div className={`p-2 rounded-lg ${invoice.invoiceType === 'outgoing' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
-                                                  <Receipt size={18} />
+
+                    {/* Right Column: Payments */}
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col">
+                       <div className="p-4 border-b border-slate-100 bg-slate-50 rounded-t-xl">
+                          <h4 className="font-bold text-slate-800 flex items-center gap-2">
+                             <Wallet size={18} className="text-green-600" />
+                             Ödemeler
+                          </h4>
+                       </div>
+                       <div className="flex-1 overflow-y-auto max-h-[500px]">
+                          {(() => {
+                             // Filter payments that belong to invoices of this project
+                             const projectPayments = payments.filter(p => {
+                                const invoice = invoices.find(inv => inv.id === p.invoiceId);
+                                return invoice?.projectId === selectedProject.id;
+                             });
+                             
+                             const methodLabels: Record<string, string> = {
+                                cash: 'Nakit',
+                                transfer: 'Havale/EFT',
+                                card: 'Kart',
+                                check: 'Çek'
+                             };
+                             
+                             const statusColors: Record<string, string> = {
+                                pending: 'bg-yellow-100 text-yellow-700',
+                                completed: 'bg-green-100 text-green-700',
+                                failed: 'bg-red-100 text-red-700',
+                                cancelled: 'bg-slate-100 text-slate-600'
+                             };
+                             
+                             const statusLabels: Record<string, string> = {
+                                pending: 'Beklemede',
+                                completed: 'Tamamlandı',
+                                failed: 'Başarısız',
+                                cancelled: 'İptal'
+                             };
+                             
+                             if (projectPayments.length === 0) {
+                                return (
+                                   <div className="p-8 text-center">
+                                      <Wallet size={40} className="text-slate-200 mx-auto mb-3" />
+                                      <div className="text-slate-400 text-sm">Ödeme bulunmuyor</div>
+                                   </div>
+                                );
+                             }
+                             
+                             return (
+                                <div className="divide-y divide-slate-100">
+                                   {projectPayments.map(payment => {
+                                      const invoice = invoices.find(inv => inv.id === payment.invoiceId);
+                                      const bankAccount = bankAccounts.find(a => a.id === payment.bankAccountId);
+                                      const bankCard = bankCards.find(c => c.id === payment.bankCardId);
+                                      
+                                      return (
+                                         <div key={payment.id} className="p-4 hover:bg-slate-50 transition cursor-pointer">
+                                            <div className="flex items-start justify-between gap-3">
+                                               <div className="flex items-start gap-3 flex-1 min-w-0">
+                                                  <div className={`p-2 rounded-lg shrink-0 ${payment.status === 'completed' ? 'bg-green-50 text-green-600' : 'bg-yellow-50 text-yellow-600'}`}>
+                                                     <CreditCard size={16} />
+                                                  </div>
+                                                  <div className="flex-1 min-w-0">
+                                                     <div className="flex items-center gap-2 mb-1">
+                                                        <span className="text-sm font-medium text-slate-800">{methodLabels[payment.paymentMethod] || payment.paymentMethod}</span>
+                                                        {payment.referenceNumber && (
+                                                           <span className="font-mono text-[10px] text-slate-400">#{payment.referenceNumber}</span>
+                                                        )}
+                                                     </div>
+                                                     {invoice && (
+                                                        <div className="text-xs text-slate-500 truncate flex items-center gap-1">
+                                                           <Receipt size={10} />
+                                                           {invoice.invoiceNumber}
+                                                        </div>
+                                                     )}
+                                                     <div className="flex items-center gap-3 mt-1.5 text-xs text-slate-400">
+                                                        <span className="flex items-center gap-1">
+                                                           <Calendar size={10} />
+                                                           {new Date(payment.paymentDate).toLocaleDateString('tr-TR')}
+                                                        </span>
+                                                        {bankAccount && (
+                                                           <span className="flex items-center gap-1">
+                                                              <Wallet size={10} />
+                                                              {bankAccount.bankName}
+                                                           </span>
+                                                        )}
+                                                        {bankCard && (
+                                                           <span className="flex items-center gap-1">
+                                                              <CreditCard size={10} />
+                                                              {bankCard.cardName}
+                                                           </span>
+                                                        )}
+                                                     </div>
+                                                     {payment.description && (
+                                                        <div className="text-xs text-slate-400 mt-1 truncate">{payment.description}</div>
+                                                     )}
+                                                  </div>
                                                </div>
-                                               <div>
-                                                  <div className="font-medium text-slate-800 font-mono">{invoice.invoiceNumber}</div>
+                                               <div className="text-right shrink-0">
+                                                  <div className="font-mono font-bold text-green-600 text-sm">+{formatCurrency(payment.amount, payment.currency)}</div>
+                                                  <span className={`inline-block mt-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${statusColors[payment.status]}`}>
+                                                     {statusLabels[payment.status]}
+                                                  </span>
                                                </div>
                                             </div>
-                                         </td>
-                                         <td className="p-4">
-                                            <span className={`px-2 py-1 rounded text-xs font-medium ${invoice.invoiceType === 'outgoing' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-                                               {invoice.invoiceType === 'outgoing' ? 'Giden' : 'Gelen'}
-                                            </span>
-                                         </td>
-                                         <td className="p-4">
-                                            <div className="text-slate-600 text-sm">{new Date(invoice.invoiceDate).toLocaleDateString('tr-TR')}</div>
-                                         </td>
-                                         <td className="p-4">
-                                            {invoice.dueDate ? (
-                                               <div className={`text-sm ${new Date(invoice.dueDate) < new Date() && invoice.status !== 'paid' ? 'text-red-600 font-medium' : 'text-slate-600'}`}>
-                                                  {new Date(invoice.dueDate).toLocaleDateString('tr-TR')}
-                                               </div>
-                                            ) : (
-                                               <span className="text-slate-300">-</span>
-                                            )}
-                                         </td>
-                                         <td className="p-4">
-                                            <div className="font-medium text-slate-700">{entity?.name || '-'}</div>
-                                         </td>
-                                         <td className="p-4">
-                                            <div className="font-mono">
-                                               <div className="text-slate-400 text-xs">KDV Hariç: {formatCurrency(invoice.amount, invoice.currency)}</div>
-                                               <div className="font-bold text-slate-800">{formatCurrency(invoice.totalAmount, invoice.currency)}</div>
-                                            </div>
-                                         </td>
-                                         <td className="p-4">
-                                            <span className={`px-2 py-1 rounded text-xs font-medium ${statusColors[invoice.status]}`}>
-                                               {statusLabels[invoice.status] || invoice.status}
-                                            </span>
-                                         </td>
-                                         <td className="p-4">
-                                            <div className="flex items-center justify-center gap-2">
-                                               <button
-                                                  onClick={() => {
-                                                     // TODO: Open invoice detail modal
-                                                  }}
-                                                  className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded transition"
-                                                  title="Detay"
-                                               >
-                                                  <Eye size={16} />
-                                               </button>
-                                               {invoice.documentUrl && (
-                                                  <a
-                                                     href={invoice.documentUrl}
-                                                     target="_blank"
-                                                     rel="noopener noreferrer"
-                                                     className="p-1.5 text-slate-500 hover:text-green-600 hover:bg-green-50 rounded transition"
-                                                     title="Dosyayı Aç"
-                                                  >
-                                                     <ExternalLink size={16} />
-                                                  </a>
-                                               )}
-                                            </div>
-                                         </td>
-                                      </tr>
-                                   );
-                                })
-                             ) : (
-                                <tr>
-                                   <td colSpan={8} className="p-12 text-center">
-                                      <Receipt size={48} className="text-slate-200 mx-auto mb-3" />
-                                      <div className="text-slate-400">Bu projeye ait fatura bulunmuyor.</div>
-                                      <p className="text-xs text-slate-400 mt-1">Fatura eklemek için "Faturalar & Ödemeler" menüsünü kullanın.</p>
-                                   </td>
-                                </tr>
-                             )}
-                          </tbody>
-                       </table>
+                                         </div>
+                                      );
+                                   })}
+                                </div>
+                             );
+                          })()}
+                       </div>
                     </div>
                  </div>
               </div>

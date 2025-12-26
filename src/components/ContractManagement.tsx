@@ -456,16 +456,28 @@ export const ContractManagement: React.FC<ContractManagementProps> = ({
                 </label>
               </div>
 
-              <label className="block">
-                <span className="text-xs font-semibold text-slate-500 block mb-1">Sözleşme Adı *</span>
-                <input 
-                  type="text" 
-                  className="w-full p-2 border rounded-lg" 
-                  value={formData.name} 
-                  onChange={e => setFormData({...formData, name: e.target.value})}
-                  placeholder="Örn: Merkez Ofis İnşaat Sözleşmesi"
-                />
-              </label>
+              <div className="grid grid-cols-2 gap-4">
+                <label className="block">
+                  <span className="text-xs font-semibold text-slate-500 block mb-1">Sözleşme Adı *</span>
+                  <input 
+                    type="text" 
+                    className="w-full p-2 border rounded-lg" 
+                    value={formData.name} 
+                    onChange={e => setFormData({...formData, name: e.target.value})}
+                    placeholder="Örn: Merkez Ofis İnşaat Sözleşmesi"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-xs font-semibold text-slate-500 block mb-1">Sözleşme Türü *</span>
+                  <select 
+                    className="w-full p-2 border rounded-lg bg-white"
+                    value={formData.type}
+                    onChange={e => setFormData({...formData, type: e.target.value as ContractType})}
+                  >
+                    {Object.entries(CONTRACT_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                  </select>
+                </label>
+              </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <label className="block">
