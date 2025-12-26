@@ -22,9 +22,16 @@ import {
   ChevronRight,
   Layers,
   CreditCard,
-  Wallet
+  Wallet,
+  FileSignature,
+  Receipt,
+  Calendar,
+  Clock,
+  DollarSign,
+  ExternalLink,
+  Eye
 } from 'lucide-react';
-import { Project, Transaction, Company, User, ProjectStatus, Currency, ProjectPriority, PermissionType, Entity, TaxItem, Contract, Tax } from '../types';
+import { Project, Transaction, Company, User, ProjectStatus, Currency, ProjectPriority, PermissionType, Entity, TaxItem, Contract, Tax, BankAccount, BankCard } from '../types';
 import { PROJECT_STATUS_LABELS, PROJECT_PRIORITY_LABELS, MARKET_RATES } from '../data/constants';
 import { formatCurrency, getCrossRate, fetchTCMBRate } from '../utils/helpers';
 
@@ -70,7 +77,7 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
   onRefreshTransactions
 }) => {
   // Detail view sub-tabs
-  const [detailTab, setDetailTab] = useState<'overview' | 'financials'>('overview');
+  const [detailTab, setDetailTab] = useState<'overview' | 'financials' | 'contracts' | 'invoices'>('overview');
   
   // Transaction table sorting and grouping
   const [sortColumn, setSortColumn] = useState<string | null>(null);
@@ -991,6 +998,20 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
            >
              Finansal Yönetim
            </button>
+           <button 
+             onClick={() => setDetailTab('contracts')}
+             className={`py-3 text-sm font-medium border-b-2 transition flex items-center gap-1.5 ${detailTab === 'contracts' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+           >
+             <FileSignature size={16} />
+             Sözleşmeler
+           </button>
+           <button 
+             onClick={() => setDetailTab('invoices')}
+             className={`py-3 text-sm font-medium border-b-2 transition flex items-center gap-1.5 ${detailTab === 'invoices' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+           >
+             <Receipt size={16} />
+             Faturalar & Ödemeler
+           </button>
         </div>
 
         {/* Content Area */}
@@ -1503,6 +1524,408 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                           </div>
                        </div>
                     )}
+                 </div>
+              </div>
+           )}
+
+           {/* --- CONTRACTS TAB --- */}
+           {detailTab === 'contracts' && (
+              <div className="max-w-7xl mx-auto space-y-6">
+                 {/* Header */}
+                 <div className="flex justify-between items-center">
+                    <div>
+                       <h3 className="text-xl font-bold text-slate-800">Proje Sözleşmeleri</h3>
+                       <p className="text-sm text-slate-500 mt-1">Bu projeye ait tüm sözleşmeleri görüntüleyin ve yönetin</p>
+                    </div>
+                 </div>
+
+                 {/* Stats Cards */}
+                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    {(() => {
+                       const projectContracts = contracts.filter(c => c.projectId === selectedProject.id);
+                       const totalContractValue = projectContracts.reduce((sum, c) => sum + c.amount, 0);
+                       const activeContracts = projectContracts.filter(c => c.status === 'active').length;
+                       const completedContracts = projectContracts.filter(c => c.status === 'completed').length;
+                       
+                       return (
+                          <>
+                             <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                                <div className="flex items-center gap-3">
+                                   <div className="p-3 bg-blue-50 text-blue-600 rounded-lg">
+                                      <FileSignature size={20} />
+                                   </div>
+                                   <div>
+                                      <div className="text-sm text-slate-500">Toplam Sözleşme</div>
+                                      <div className="text-2xl font-bold text-slate-800">{projectContracts.length}</div>
+                                   </div>
+                                </div>
+                             </div>
+                             <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                                <div className="flex items-center gap-3">
+                                   <div className="p-3 bg-green-50 text-green-600 rounded-lg">
+                                      <CheckCircle size={20} />
+                                   </div>
+                                   <div>
+                                      <div className="text-sm text-slate-500">Aktif Sözleşme</div>
+                                      <div className="text-2xl font-bold text-green-600">{activeContracts}</div>
+                                   </div>
+                                </div>
+                             </div>
+                             <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                                <div className="flex items-center gap-3">
+                                   <div className="p-3 bg-slate-100 text-slate-600 rounded-lg">
+                                      <Clock size={20} />
+                                   </div>
+                                   <div>
+                                      <div className="text-sm text-slate-500">Tamamlanan</div>
+                                      <div className="text-2xl font-bold text-slate-600">{completedContracts}</div>
+                                   </div>
+                                </div>
+                             </div>
+                             <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                                <div className="flex items-center gap-3">
+                                   <div className="p-3 bg-purple-50 text-purple-600 rounded-lg">
+                                      <DollarSign size={20} />
+                                   </div>
+                                   <div>
+                                      <div className="text-sm text-slate-500">Toplam Değer</div>
+                                      <div className="text-xl font-bold text-purple-600">{formatCurrency(totalContractValue, selectedProject.agreementCurrency)}</div>
+                                   </div>
+                                </div>
+                             </div>
+                          </>
+                       );
+                    })()}
+                 </div>
+
+                 {/* Contracts Table */}
+                 <div className="bg-white rounded-xl shadow-sm border border-slate-200">
+                    <div className="overflow-x-auto">
+                       <table className="w-full text-left text-sm">
+                          <thead className="bg-slate-50 text-slate-500">
+                             <tr>
+                                <th className="p-4 font-medium">Sözleşme</th>
+                                <th className="p-4 font-medium">Tür</th>
+                                <th className="p-4 font-medium">Taraf</th>
+                                <th className="p-4 font-medium">Tarih Aralığı</th>
+                                <th className="p-4 font-medium">Tutar</th>
+                                <th className="p-4 font-medium">Durum</th>
+                                <th className="p-4 font-medium text-center">İşlemler</th>
+                             </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                             {contracts.filter(c => c.projectId === selectedProject.id).length > 0 ? (
+                                contracts.filter(c => c.projectId === selectedProject.id).map(contract => {
+                                   const entity = entities.find(e => e.id === contract.entityId);
+                                   const contractTransactions = transactions.filter(t => t.contractId === contract.id);
+                                   const realizedAmount = contractTransactions.reduce((sum, t) => {
+                                      const converted = t.currency === contract.currency ? t.amount : t.amount * t.exchangeRate;
+                                      return sum + (t.type === 'income' ? converted : -converted);
+                                   }, 0);
+                                   
+                                   const statusColors: Record<string, string> = {
+                                      draft: 'bg-slate-100 text-slate-600',
+                                      active: 'bg-green-100 text-green-700',
+                                      completed: 'bg-blue-100 text-blue-700',
+                                      cancelled: 'bg-red-100 text-red-700',
+                                      expired: 'bg-orange-100 text-orange-700'
+                                   };
+                                   
+                                   const typeLabels: Record<string, string> = {
+                                      customer_agreement: 'Müşteri Anlaşması',
+                                      subcontractor_agreement: 'Taşeron Anlaşması',
+                                      purchase_order: 'Satın Alma',
+                                      service_agreement: 'Hizmet Sözleşmesi'
+                                   };
+                                   
+                                   const statusLabels: Record<string, string> = {
+                                      draft: 'Taslak',
+                                      active: 'Aktif',
+                                      completed: 'Tamamlandı',
+                                      cancelled: 'İptal',
+                                      expired: 'Süresi Doldu'
+                                   };
+                                   
+                                   return (
+                                      <tr key={contract.id} className="hover:bg-slate-50 transition">
+                                         <td className="p-4">
+                                            <div className="flex items-center gap-3">
+                                               <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
+                                                  <FileSignature size={18} />
+                                               </div>
+                                               <div>
+                                                  <div className="font-medium text-slate-800">{contract.name}</div>
+                                                  <div className="text-xs text-slate-400 font-mono">{contract.code}</div>
+                                               </div>
+                                            </div>
+                                         </td>
+                                         <td className="p-4">
+                                            <span className="text-slate-600 text-xs bg-slate-100 px-2 py-1 rounded">
+                                               {typeLabels[contract.type] || contract.type}
+                                            </span>
+                                         </td>
+                                         <td className="p-4">
+                                            <div className="font-medium text-slate-700">{entity?.name || '-'}</div>
+                                            <div className="text-xs text-slate-400">{entity?.type === 'customer' ? 'Müşteri' : entity?.type === 'supplier' ? 'Tedarikçi' : entity?.type === 'subcontractor' ? 'Taşeron' : '-'}</div>
+                                         </td>
+                                         <td className="p-4">
+                                            <div className="flex items-center gap-1 text-slate-600">
+                                               <Calendar size={14} className="text-slate-400" />
+                                               <span className="text-xs">{new Date(contract.startDate).toLocaleDateString('tr-TR')}</span>
+                                               <span className="text-slate-300 mx-1">→</span>
+                                               <span className="text-xs">{new Date(contract.endDate).toLocaleDateString('tr-TR')}</span>
+                                            </div>
+                                         </td>
+                                         <td className="p-4">
+                                            <div className="font-mono font-medium text-slate-800">{formatCurrency(contract.amount, contract.currency)}</div>
+                                            <div className="text-xs text-slate-400 mt-0.5">
+                                               Gerçekleşen: <span className={realizedAmount >= 0 ? 'text-green-600' : 'text-red-600'}>{formatCurrency(Math.abs(realizedAmount), contract.currency)}</span>
+                                            </div>
+                                         </td>
+                                         <td className="p-4">
+                                            <span className={`px-2 py-1 rounded text-xs font-medium ${statusColors[contract.status]}`}>
+                                               {statusLabels[contract.status] || contract.status}
+                                            </span>
+                                         </td>
+                                         <td className="p-4">
+                                            <div className="flex items-center justify-center gap-2">
+                                               <button
+                                                  onClick={() => {
+                                                     // TODO: Open contract detail modal
+                                                  }}
+                                                  className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded transition"
+                                                  title="Detay"
+                                               >
+                                                  <Eye size={16} />
+                                               </button>
+                                               {contract.attachments && contract.attachments.length > 0 && (
+                                                  <a
+                                                     href={contract.attachments[0]}
+                                                     target="_blank"
+                                                     rel="noopener noreferrer"
+                                                     className="p-1.5 text-slate-500 hover:text-green-600 hover:bg-green-50 rounded transition"
+                                                     title="Dosyayı Aç"
+                                                  >
+                                                     <ExternalLink size={16} />
+                                                  </a>
+                                               )}
+                                            </div>
+                                         </td>
+                                      </tr>
+                                   );
+                                })
+                             ) : (
+                                <tr>
+                                   <td colSpan={7} className="p-12 text-center">
+                                      <FileSignature size={48} className="text-slate-200 mx-auto mb-3" />
+                                      <div className="text-slate-400">Bu projeye ait sözleşme bulunmuyor.</div>
+                                      <p className="text-xs text-slate-400 mt-1">Sözleşme eklemek için "Sözleşmeler" menüsünü kullanın.</p>
+                                   </td>
+                                </tr>
+                             )}
+                          </tbody>
+                       </table>
+                    </div>
+                 </div>
+              </div>
+           )}
+
+           {/* --- INVOICES TAB --- */}
+           {detailTab === 'invoices' && (
+              <div className="max-w-7xl mx-auto space-y-6">
+                 {/* Header */}
+                 <div className="flex justify-between items-center">
+                    <div>
+                       <h3 className="text-xl font-bold text-slate-800">Faturalar & Ödemeler</h3>
+                       <p className="text-sm text-slate-500 mt-1">Bu projeye ait faturaları ve ödemeleri görüntüleyin</p>
+                    </div>
+                 </div>
+
+                 {/* Stats Cards */}
+                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    {(() => {
+                       const projectInvoices = invoices.filter(inv => inv.projectId === selectedProject.id);
+                       const incomingInvoices = projectInvoices.filter(inv => inv.invoiceType === 'incoming');
+                       const outgoingInvoices = projectInvoices.filter(inv => inv.invoiceType === 'outgoing');
+                       const totalIncoming = incomingInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
+                       const totalOutgoing = outgoingInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
+                       const pendingInvoices = projectInvoices.filter(inv => inv.status === 'issued' || inv.status === 'overdue');
+                       
+                       return (
+                          <>
+                             <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                                <div className="flex items-center gap-3">
+                                   <div className="p-3 bg-blue-50 text-blue-600 rounded-lg">
+                                      <Receipt size={20} />
+                                   </div>
+                                   <div>
+                                      <div className="text-sm text-slate-500">Toplam Fatura</div>
+                                      <div className="text-2xl font-bold text-slate-800">{projectInvoices.length}</div>
+                                   </div>
+                                </div>
+                             </div>
+                             <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                                <div className="flex items-center gap-3">
+                                   <div className="p-3 bg-green-50 text-green-600 rounded-lg">
+                                      <TrendingUp size={20} />
+                                   </div>
+                                   <div>
+                                      <div className="text-sm text-slate-500">Giden Faturalar</div>
+                                      <div className="text-xl font-bold text-green-600">{formatCurrency(totalOutgoing, selectedProject.agreementCurrency)}</div>
+                                      <div className="text-xs text-slate-400">{outgoingInvoices.length} adet</div>
+                                   </div>
+                                </div>
+                             </div>
+                             <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                                <div className="flex items-center gap-3">
+                                   <div className="p-3 bg-red-50 text-red-600 rounded-lg">
+                                      <ArrowRightLeft size={20} />
+                                   </div>
+                                   <div>
+                                      <div className="text-sm text-slate-500">Gelen Faturalar</div>
+                                      <div className="text-xl font-bold text-red-600">{formatCurrency(totalIncoming, selectedProject.agreementCurrency)}</div>
+                                      <div className="text-xs text-slate-400">{incomingInvoices.length} adet</div>
+                                   </div>
+                                </div>
+                             </div>
+                             <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                                <div className="flex items-center gap-3">
+                                   <div className="p-3 bg-orange-50 text-orange-600 rounded-lg">
+                                      <AlertCircle size={20} />
+                                   </div>
+                                   <div>
+                                      <div className="text-sm text-slate-500">Bekleyen Ödeme</div>
+                                      <div className="text-2xl font-bold text-orange-600">{pendingInvoices.length}</div>
+                                   </div>
+                                </div>
+                             </div>
+                          </>
+                       );
+                    })()}
+                 </div>
+
+                 {/* Invoices Table */}
+                 <div className="bg-white rounded-xl shadow-sm border border-slate-200">
+                    <div className="p-5 border-b border-slate-100">
+                       <h4 className="font-bold text-slate-800">Fatura Listesi</h4>
+                    </div>
+                    <div className="overflow-x-auto">
+                       <table className="w-full text-left text-sm">
+                          <thead className="bg-slate-50 text-slate-500">
+                             <tr>
+                                <th className="p-4 font-medium">Fatura No</th>
+                                <th className="p-4 font-medium">Tür</th>
+                                <th className="p-4 font-medium">Tarih</th>
+                                <th className="p-4 font-medium">Vade</th>
+                                <th className="p-4 font-medium">Taraf</th>
+                                <th className="p-4 font-medium">Tutar</th>
+                                <th className="p-4 font-medium">Durum</th>
+                                <th className="p-4 font-medium text-center">İşlemler</th>
+                             </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                             {invoices.filter(inv => inv.projectId === selectedProject.id).length > 0 ? (
+                                invoices.filter(inv => inv.projectId === selectedProject.id).map(invoice => {
+                                   const entity = entities.find(e => e.id === invoice.entityId);
+                                   
+                                   const statusColors: Record<string, string> = {
+                                      draft: 'bg-slate-100 text-slate-600',
+                                      issued: 'bg-blue-100 text-blue-700',
+                                      paid: 'bg-green-100 text-green-700',
+                                      cancelled: 'bg-red-100 text-red-700',
+                                      overdue: 'bg-orange-100 text-orange-700'
+                                   };
+                                   
+                                   const statusLabels: Record<string, string> = {
+                                      draft: 'Taslak',
+                                      issued: 'Kesildi',
+                                      paid: 'Ödendi',
+                                      cancelled: 'İptal',
+                                      overdue: 'Vadesi Geçti'
+                                   };
+                                   
+                                   return (
+                                      <tr key={invoice.id} className="hover:bg-slate-50 transition">
+                                         <td className="p-4">
+                                            <div className="flex items-center gap-3">
+                                               <div className={`p-2 rounded-lg ${invoice.invoiceType === 'outgoing' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
+                                                  <Receipt size={18} />
+                                               </div>
+                                               <div>
+                                                  <div className="font-medium text-slate-800 font-mono">{invoice.invoiceNumber}</div>
+                                               </div>
+                                            </div>
+                                         </td>
+                                         <td className="p-4">
+                                            <span className={`px-2 py-1 rounded text-xs font-medium ${invoice.invoiceType === 'outgoing' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                                               {invoice.invoiceType === 'outgoing' ? 'Giden' : 'Gelen'}
+                                            </span>
+                                         </td>
+                                         <td className="p-4">
+                                            <div className="text-slate-600 text-sm">{new Date(invoice.invoiceDate).toLocaleDateString('tr-TR')}</div>
+                                         </td>
+                                         <td className="p-4">
+                                            {invoice.dueDate ? (
+                                               <div className={`text-sm ${new Date(invoice.dueDate) < new Date() && invoice.status !== 'paid' ? 'text-red-600 font-medium' : 'text-slate-600'}`}>
+                                                  {new Date(invoice.dueDate).toLocaleDateString('tr-TR')}
+                                               </div>
+                                            ) : (
+                                               <span className="text-slate-300">-</span>
+                                            )}
+                                         </td>
+                                         <td className="p-4">
+                                            <div className="font-medium text-slate-700">{entity?.name || '-'}</div>
+                                         </td>
+                                         <td className="p-4">
+                                            <div className="font-mono">
+                                               <div className="text-slate-400 text-xs">KDV Hariç: {formatCurrency(invoice.amount, invoice.currency)}</div>
+                                               <div className="font-bold text-slate-800">{formatCurrency(invoice.totalAmount, invoice.currency)}</div>
+                                            </div>
+                                         </td>
+                                         <td className="p-4">
+                                            <span className={`px-2 py-1 rounded text-xs font-medium ${statusColors[invoice.status]}`}>
+                                               {statusLabels[invoice.status] || invoice.status}
+                                            </span>
+                                         </td>
+                                         <td className="p-4">
+                                            <div className="flex items-center justify-center gap-2">
+                                               <button
+                                                  onClick={() => {
+                                                     // TODO: Open invoice detail modal
+                                                  }}
+                                                  className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded transition"
+                                                  title="Detay"
+                                               >
+                                                  <Eye size={16} />
+                                               </button>
+                                               {invoice.documentUrl && (
+                                                  <a
+                                                     href={invoice.documentUrl}
+                                                     target="_blank"
+                                                     rel="noopener noreferrer"
+                                                     className="p-1.5 text-slate-500 hover:text-green-600 hover:bg-green-50 rounded transition"
+                                                     title="Dosyayı Aç"
+                                                  >
+                                                     <ExternalLink size={16} />
+                                                  </a>
+                                               )}
+                                            </div>
+                                         </td>
+                                      </tr>
+                                   );
+                                })
+                             ) : (
+                                <tr>
+                                   <td colSpan={8} className="p-12 text-center">
+                                      <Receipt size={48} className="text-slate-200 mx-auto mb-3" />
+                                      <div className="text-slate-400">Bu projeye ait fatura bulunmuyor.</div>
+                                      <p className="text-xs text-slate-400 mt-1">Fatura eklemek için "Faturalar & Ödemeler" menüsünü kullanın.</p>
+                                   </td>
+                                </tr>
+                             )}
+                          </tbody>
+                       </table>
+                    </div>
                  </div>
               </div>
            )}
