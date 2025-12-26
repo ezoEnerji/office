@@ -1845,10 +1845,38 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                     {/* Left Column: Invoices */}
                     <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col">
                        <div className="p-4 border-b border-slate-100 bg-slate-50 rounded-t-xl">
-                          <h4 className="font-bold text-slate-800 flex items-center gap-2">
-                             <Receipt size={18} className="text-blue-600" />
-                             Faturalar
-                          </h4>
+                          <div className="flex items-center justify-between">
+                             <h4 className="font-bold text-slate-800 flex items-center gap-2">
+                                <Receipt size={18} className="text-blue-600" />
+                                Faturalar
+                             </h4>
+                             {(() => {
+                                const projectInvoices = invoices
+                                   .filter(inv => inv.projectId === selectedProject.id)
+                                   .filter(inv => invoiceTypeFilter === 'all' || inv.invoiceType === invoiceTypeFilter)
+                                   .filter(inv => invoiceStatusFilter === 'all' || inv.status === invoiceStatusFilter)
+                                   .filter(inv => invoiceEntityFilter === 'all' || inv.entityId === invoiceEntityFilter);
+                                
+                                // Calculate totals by currency
+                                const totalsByCurrency: Record<string, number> = {};
+                                projectInvoices.forEach(inv => {
+                                   totalsByCurrency[inv.currency] = (totalsByCurrency[inv.currency] || 0) + inv.totalAmount;
+                                });
+                                
+                                return (
+                                   <div className="flex flex-col items-end gap-1">
+                                      {Object.entries(totalsByCurrency).map(([currency, total]) => (
+                                         <div key={currency} className="text-xs font-mono font-bold text-blue-600">
+                                            Toplam: {formatCurrency(total, currency as Currency)}
+                                         </div>
+                                      ))}
+                                      {Object.keys(totalsByCurrency).length === 0 && (
+                                         <div className="text-xs text-slate-400">Toplam: -</div>
+                                      )}
+                                   </div>
+                                );
+                             })()}
+                          </div>
                        </div>
                        <div className="flex-1 overflow-y-auto max-h-[500px]">
                           {(() => {
@@ -1938,17 +1966,79 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                     {/* Right Column: Payments */}
                     <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col">
                        <div className="p-4 border-b border-slate-100 bg-slate-50 rounded-t-xl">
-                          <h4 className="font-bold text-slate-800 flex items-center gap-2">
-                             <Wallet size={18} className="text-green-600" />
-                             Ödemeler
-                          </h4>
+                          <div className="flex items-center justify-between">
+                             <h4 className="font-bold text-slate-800 flex items-center gap-2">
+                                <Wallet size={18} className="text-green-600" />
+                                Ödemeler
+                             </h4>
+                             {(() => {
+                                // Filter payments that belong to invoices of this project and apply entity filter
+                                const projectPayments = payments.filter(p => {
+                                   const invoice = invoices.find(inv => inv.id === p.invoiceId);
+                                   if (!invoice || invoice.projectId !== selectedProject.id) return false;
+                                   
+                                   // Apply entity filter - if entity filter is set, check if invoice belongs to that entity
+                                   if (invoiceEntityFilter !== 'all' && invoice.entityId !== invoiceEntityFilter) {
+                                      return false;
+                                   }
+                                   
+                                   // Apply status filter - check invoice status
+                                   if (invoiceStatusFilter !== 'all' && invoice.status !== invoiceStatusFilter) {
+                                      return false;
+                                   }
+                                   
+                                   // Apply type filter - check invoice type
+                                   if (invoiceTypeFilter !== 'all' && invoice.invoiceType !== invoiceTypeFilter) {
+                                      return false;
+                                   }
+                                   
+                                   return true;
+                                });
+                                
+                                // Calculate totals by currency
+                                const totalsByCurrency: Record<string, number> = {};
+                                projectPayments.forEach(p => {
+                                   totalsByCurrency[p.currency] = (totalsByCurrency[p.currency] || 0) + p.amount;
+                                });
+                                
+                                return (
+                                   <div className="flex flex-col items-end gap-1">
+                                      {Object.entries(totalsByCurrency).map(([currency, total]) => (
+                                         <div key={currency} className="text-xs font-mono font-bold text-green-600">
+                                            Toplam: {formatCurrency(total, currency as Currency)}
+                                         </div>
+                                      ))}
+                                      {Object.keys(totalsByCurrency).length === 0 && (
+                                         <div className="text-xs text-slate-400">Toplam: -</div>
+                                      )}
+                                   </div>
+                                );
+                             })()}
+                          </div>
                        </div>
                        <div className="flex-1 overflow-y-auto max-h-[500px]">
                           {(() => {
-                             // Filter payments that belong to invoices of this project
+                             // Filter payments that belong to invoices of this project and apply entity filter
                              const projectPayments = payments.filter(p => {
                                 const invoice = invoices.find(inv => inv.id === p.invoiceId);
-                                return invoice?.projectId === selectedProject.id;
+                                if (!invoice || invoice.projectId !== selectedProject.id) return false;
+                                
+                                // Apply entity filter - if entity filter is set, check if invoice belongs to that entity
+                                if (invoiceEntityFilter !== 'all' && invoice.entityId !== invoiceEntityFilter) {
+                                   return false;
+                                }
+                                
+                                // Apply status filter - check invoice status
+                                if (invoiceStatusFilter !== 'all' && invoice.status !== invoiceStatusFilter) {
+                                   return false;
+                                }
+                                
+                                // Apply type filter - check invoice type
+                                if (invoiceTypeFilter !== 'all' && invoice.invoiceType !== invoiceTypeFilter) {
+                                   return false;
+                                }
+                                
+                                return true;
                              });
                              
                              const methodLabels: Record<string, string> = {
