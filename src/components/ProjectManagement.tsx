@@ -1799,11 +1799,14 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                           >
                              <option value="all">Tümü</option>
                              {(() => {
-                                // Get unique entities from project invoices (filtered by selected contract if any)
+                                // Get unique entities from both contracts and invoices for this project
+                                const projectContracts = contracts.filter(c => c.projectId === selectedProject.id);
                                 const projectInvoices = invoices
                                    .filter(inv => inv.projectId === selectedProject.id)
                                    .filter(inv => selectedContractId === null || inv.contractId === selectedContractId);
-                                const uniqueEntityIds = [...new Set(projectInvoices.map(inv => inv.entityId))];
+                                const contractEntityIds = projectContracts.map(c => c.entityId);
+                                const invoiceEntityIds = projectInvoices.map(inv => inv.entityId);
+                                const uniqueEntityIds = [...new Set([...contractEntityIds, ...invoiceEntityIds])];
                                 return uniqueEntityIds.map(entityId => {
                                    const entity = entities.find(e => e.id === entityId);
                                    if (!entity) return null;
@@ -1871,7 +1874,34 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                        >
                           {(() => {
                              // Filter contracts for this project
-                             const projectContracts = contracts.filter(c => c.projectId === selectedProject.id);
+                             // Map invoice status to contract status for filtering
+                             const statusMapping: Record<string, string[]> = {
+                                'all': [],
+                                'draft': ['draft'],
+                                'issued': ['active'],
+                                'paid': ['completed'],
+                                'cancelled': ['cancelled'],
+                                'overdue': ['expired']
+                             };
+                             
+                             const projectContracts = contracts
+                                .filter(c => c.projectId === selectedProject.id)
+                                .filter(c => {
+                                   // Apply entity filter
+                                   if (invoiceEntityFilter !== 'all' && c.entityId !== invoiceEntityFilter) {
+                                      return false;
+                                   }
+                                   
+                                   // Apply status filter (map invoice status to contract status)
+                                   if (invoiceStatusFilter !== 'all') {
+                                      const allowedStatuses = statusMapping[invoiceStatusFilter] || [];
+                                      if (allowedStatuses.length > 0 && !allowedStatuses.includes(c.status)) {
+                                         return false;
+                                      }
+                                   }
+                                   
+                                   return true;
+                                });
                              
                              if (projectContracts.length === 0) {
                                 return (
