@@ -313,6 +313,11 @@ router.put('/:id', authenticateToken, async (req, res) => {
       // Mevcut transaction'ı güncelle
       const transactionDesc = `[Otomatik] ${transactionType === 'income' ? 'Gelen Ödeme' : 'Giden Ödeme'} - ${invoice?.invoiceNumber || 'Fatura'}${referenceNumber ? ` (Ref: ${referenceNumber})` : ''}`;
       
+      // documentUrl için: request'te varsa onu kullan, yoksa güncellenen payment'tan al
+      const finalDocumentUrl = documentUrl !== undefined 
+        ? (documentUrl && documentUrl.trim() !== '' ? documentUrl : null)
+        : (payment.documentUrl || null);
+      
       const transactionUpdateData: any = {
         type: transactionType,
         amount: amount !== undefined ? Number(amount) : undefined,
@@ -327,7 +332,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
         invoiceId: finalInvoiceId && finalInvoiceId.trim() !== '' ? finalInvoiceId : null,
         bankAccountId: bankAccountId !== undefined ? (bankAccountId && bankAccountId.trim() !== '' ? bankAccountId : null) : undefined,
         bankCardId: bankCardId !== undefined ? (bankCardId && bankCardId.trim() !== '' ? bankCardId : null) : undefined,
-        documentUrl: documentUrl !== undefined ? (documentUrl && documentUrl.trim() !== '' ? documentUrl : null) : undefined,
+        documentUrl: finalDocumentUrl, // Her zaman güncelle (null veya değer)
         totalAmount: amount !== undefined ? Number(amount) : undefined
       };
       
