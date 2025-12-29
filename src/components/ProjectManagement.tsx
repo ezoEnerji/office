@@ -4480,6 +4480,7 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                 {/* Amount Details */}
                 {(() => {
                   // Kur dönüşümü ile toplam ödenen tutarı hesapla
+                  const invoicePayments = payments.filter(p => p.invoiceId === viewingInvoice.id && p.status === 'completed');
                   const totalPaid = getInvoicePaidAmount(viewingInvoice);
                   const remainingAmount = getInvoiceRemainingAmount(viewingInvoice);
                   const progressPercent = viewingInvoice.totalAmount > 0 ? Math.min((totalPaid / viewingInvoice.totalAmount) * 100, 100) : 0;
