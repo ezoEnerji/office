@@ -130,6 +130,64 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [selectedContractId, setSelectedContractId] = useState<string | null>(null);
   
+  // Contract Modal State
+  const [isContractModalOpen, setIsContractModalOpen] = useState(false);
+  const [editingContractData, setEditingContractData] = useState<Contract | null>(null);
+  const [contractFormData, setContractFormData] = useState({
+    code: '',
+    name: '',
+    type: 'subcontractor_agreement' as Contract['type'],
+    status: 'draft' as Contract['status'],
+    projectId: '',
+    companyId: '',
+    entityId: '',
+    startDate: new Date().toISOString().split('T')[0],
+    endDate: '',
+    amount: 0,
+    currency: 'TRY' as Currency,
+    paymentTerms: '',
+    description: '',
+    isVatIncluded: false
+  });
+  
+  // Invoice Modal State
+  const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
+  const [editingInvoiceData, setEditingInvoiceData] = useState<any | null>(null);
+  const [invoiceFormData, setInvoiceFormData] = useState({
+    invoiceNumber: '',
+    invoiceType: 'incoming' as 'incoming' | 'outgoing',
+    invoiceDate: new Date().toISOString().split('T')[0],
+    dueDate: '',
+    amount: 0,
+    vatRate: 20,
+    vatAmount: 0,
+    totalAmount: 0,
+    currency: 'TRY' as Currency,
+    status: 'draft' as 'draft' | 'issued' | 'paid' | 'cancelled' | 'overdue',
+    projectId: '',
+    companyId: '',
+    entityId: '',
+    contractId: '',
+    description: '',
+    isVatIncluded: false
+  });
+  
+  // Payment Modal State
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [editingPaymentData, setEditingPaymentData] = useState<any | null>(null);
+  const [paymentFormData, setPaymentFormData] = useState({
+    paymentDate: new Date().toISOString().split('T')[0],
+    amount: 0,
+    currency: 'TRY' as Currency,
+    paymentMethod: 'transfer' as 'cash' | 'transfer' | 'card' | 'check',
+    invoiceId: '',
+    bankAccountId: '',
+    bankCardId: '',
+    description: '',
+    referenceNumber: '',
+    status: 'completed' as 'pending' | 'completed' | 'failed' | 'cancelled'
+  });
+  
   // Load bank accounts and cards when project changes
   useEffect(() => {
     if (selectedProject) {
@@ -175,6 +233,246 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
       setPayments(data);
     } catch (error: any) {
       console.error('Ödemeler yüklenirken hata:', error);
+    }
+  };
+  
+  // Contract Modal Handlers
+  const openContractModal = (contract?: Contract) => {
+    if (contract) {
+      setEditingContractData(contract);
+      setContractFormData({
+        code: contract.code,
+        name: contract.name,
+        type: contract.type,
+        status: contract.status,
+        projectId: contract.projectId,
+        companyId: contract.companyId,
+        entityId: contract.entityId,
+        startDate: contract.startDate ? new Date(contract.startDate).toISOString().split('T')[0] : '',
+        endDate: contract.endDate ? new Date(contract.endDate).toISOString().split('T')[0] : '',
+        amount: contract.amount,
+        currency: contract.currency,
+        paymentTerms: contract.paymentTerms || '',
+        description: contract.description || '',
+        isVatIncluded: contract.isVatIncluded || false
+      });
+    } else {
+      setEditingContractData(null);
+      const projectContracts = contracts.filter(c => c.projectId === selectedProject?.id);
+      setContractFormData({
+        code: `CNT-${new Date().getFullYear()}-${String(projectContracts.length + 1).padStart(3, '0')}`,
+        name: '',
+        type: 'subcontractor_agreement',
+        status: 'draft',
+        projectId: selectedProject?.id || '',
+        companyId: selectedProject?.companyId || '',
+        entityId: entities[0]?.id || '',
+        startDate: new Date().toISOString().split('T')[0],
+        endDate: '',
+        amount: 0,
+        currency: selectedProject?.agreementCurrency || 'TRY',
+        paymentTerms: '',
+        description: '',
+        isVatIncluded: false
+      });
+    }
+    setIsContractModalOpen(true);
+  };
+  
+  const handleSaveContract = async () => {
+    if (!contractFormData.name || !contractFormData.entityId || !contractFormData.startDate || !contractFormData.endDate) {
+      alert('Sözleşme adı, taraf, başlangıç ve bitiş tarihi zorunludur.');
+      return;
+    }
+    try {
+      if (editingContractData) {
+        await apiService.updateContract(editingContractData.id, contractFormData);
+      } else {
+        await apiService.createContract(contractFormData);
+      }
+      setIsContractModalOpen(false);
+      if (onRefresh) onRefresh();
+    } catch (error: any) {
+      alert(error.message || 'Kayıt sırasında bir hata oluştu');
+    }
+  };
+  
+  const handleDeleteContract = async (id: string) => {
+    if (confirm('Sözleşmeyi silmek istediğinize emin misiniz?')) {
+      try {
+        await apiService.deleteContract(id);
+        if (onRefresh) onRefresh();
+      } catch (error: any) {
+        alert(error.message || 'Silme sırasında bir hata oluştu');
+      }
+    }
+  };
+  
+  // Invoice Modal Handlers
+  const openInvoiceModal = (invoice?: any) => {
+    if (invoice) {
+      setEditingInvoiceData(invoice);
+      setInvoiceFormData({
+        invoiceNumber: invoice.invoiceNumber,
+        invoiceType: invoice.invoiceType,
+        invoiceDate: invoice.invoiceDate ? new Date(invoice.invoiceDate).toISOString().split('T')[0] : '',
+        dueDate: invoice.dueDate ? new Date(invoice.dueDate).toISOString().split('T')[0] : '',
+        amount: invoice.amount,
+        vatRate: invoice.vatAmount && invoice.amount ? Math.round((invoice.vatAmount / invoice.amount) * 100) : 20,
+        vatAmount: invoice.vatAmount,
+        totalAmount: invoice.totalAmount,
+        currency: invoice.currency,
+        status: invoice.status,
+        projectId: invoice.projectId || '',
+        companyId: invoice.companyId,
+        entityId: invoice.entityId,
+        contractId: invoice.contractId || '',
+        description: invoice.description || '',
+        isVatIncluded: invoice.isVatIncluded || false
+      });
+    } else {
+      setEditingInvoiceData(null);
+      const year = new Date().getFullYear();
+      const projectInvoices = invoices.filter(inv => inv.projectId === selectedProject?.id);
+      setInvoiceFormData({
+        invoiceNumber: `INV${year}${String(projectInvoices.length + 1).padStart(8, '0')}`,
+        invoiceType: 'incoming',
+        invoiceDate: new Date().toISOString().split('T')[0],
+        dueDate: '',
+        amount: 0,
+        vatRate: 20,
+        vatAmount: 0,
+        totalAmount: 0,
+        currency: selectedProject?.agreementCurrency || 'TRY',
+        status: 'draft',
+        projectId: selectedProject?.id || '',
+        companyId: selectedProject?.companyId || '',
+        entityId: selectedContractId ? contracts.find(c => c.id === selectedContractId)?.entityId || '' : '',
+        contractId: selectedContractId || '',
+        description: '',
+        isVatIncluded: false
+      });
+    }
+    setIsInvoiceModalOpen(true);
+  };
+  
+  const calculateInvoiceTotals = (amount: number, vatRate: number, isVatIncluded: boolean) => {
+    if (isVatIncluded) {
+      const baseAmount = amount / (1 + vatRate / 100);
+      const vatAmount = amount - baseAmount;
+      return { amount: baseAmount, vatAmount, totalAmount: amount };
+    } else {
+      const vatAmount = amount * (vatRate / 100);
+      return { amount, vatAmount, totalAmount: amount + vatAmount };
+    }
+  };
+  
+  const handleSaveInvoice = async () => {
+    if (!invoiceFormData.invoiceNumber || !invoiceFormData.entityId) {
+      alert('Fatura numarası ve taraf seçimi zorunludur.');
+      return;
+    }
+    try {
+      const totals = calculateInvoiceTotals(invoiceFormData.amount, invoiceFormData.vatRate, invoiceFormData.isVatIncluded);
+      const dataToSave = {
+        ...invoiceFormData,
+        amount: totals.amount,
+        vatAmount: totals.vatAmount,
+        totalAmount: totals.totalAmount
+      };
+      
+      if (editingInvoiceData) {
+        await apiService.updateInvoice(editingInvoiceData.id, dataToSave);
+      } else {
+        await apiService.createInvoice(dataToSave);
+      }
+      setIsInvoiceModalOpen(false);
+      // Reload invoices
+      const projectCompany = companies.find(c => c.id === selectedProject?.companyId);
+      if (projectCompany) loadInvoices(projectCompany.id);
+    } catch (error: any) {
+      alert(error.message || 'Kayıt sırasında bir hata oluştu');
+    }
+  };
+  
+  const handleDeleteInvoice = async (id: string) => {
+    if (confirm('Faturayı silmek istediğinize emin misiniz?')) {
+      try {
+        await apiService.deleteInvoice(id);
+        const projectCompany = companies.find(c => c.id === selectedProject?.companyId);
+        if (projectCompany) loadInvoices(projectCompany.id);
+      } catch (error: any) {
+        alert(error.message || 'Silme sırasında bir hata oluştu');
+      }
+    }
+  };
+  
+  // Payment Modal Handlers
+  const openPaymentModal = (payment?: any) => {
+    if (payment) {
+      setEditingPaymentData(payment);
+      setPaymentFormData({
+        paymentDate: payment.paymentDate ? new Date(payment.paymentDate).toISOString().split('T')[0] : '',
+        amount: payment.amount,
+        currency: payment.currency,
+        paymentMethod: payment.paymentMethod,
+        invoiceId: payment.invoiceId || '',
+        bankAccountId: payment.bankAccountId || '',
+        bankCardId: payment.bankCardId || '',
+        description: payment.description || '',
+        referenceNumber: payment.referenceNumber || '',
+        status: payment.status
+      });
+    } else {
+      setEditingPaymentData(null);
+      const selectedInvoice = selectedInvoiceId ? invoices.find(inv => inv.id === selectedInvoiceId) : null;
+      setPaymentFormData({
+        paymentDate: new Date().toISOString().split('T')[0],
+        amount: selectedInvoice ? selectedInvoice.totalAmount : 0,
+        currency: selectedInvoice?.currency || selectedProject?.agreementCurrency || 'TRY',
+        paymentMethod: 'transfer',
+        invoiceId: selectedInvoiceId || '',
+        bankAccountId: bankAccounts[0]?.id || '',
+        bankCardId: '',
+        description: '',
+        referenceNumber: '',
+        status: 'completed'
+      });
+    }
+    setIsPaymentModalOpen(true);
+  };
+  
+  const handleSavePayment = async () => {
+    if (!paymentFormData.invoiceId || !paymentFormData.amount) {
+      alert('Fatura seçimi ve tutar zorunludur.');
+      return;
+    }
+    try {
+      if (editingPaymentData) {
+        await apiService.updatePayment(editingPaymentData.id, paymentFormData);
+      } else {
+        await apiService.createPayment(paymentFormData);
+      }
+      setIsPaymentModalOpen(false);
+      loadPayments();
+      // Also reload invoices to update paid status
+      const projectCompany = companies.find(c => c.id === selectedProject?.companyId);
+      if (projectCompany) loadInvoices(projectCompany.id);
+    } catch (error: any) {
+      alert(error.message || 'Kayıt sırasında bir hata oluştu');
+    }
+  };
+  
+  const handleDeletePayment = async (id: string) => {
+    if (confirm('Ödemeyi silmek istediğinize emin misiniz?')) {
+      try {
+        await apiService.deletePayment(id);
+        loadPayments();
+        const projectCompany = companies.find(c => c.id === selectedProject?.companyId);
+        if (projectCompany) loadInvoices(projectCompany.id);
+      } catch (error: any) {
+        alert(error.message || 'Silme sırasında bir hata oluştu');
+      }
     }
   };
   
@@ -1875,6 +2173,13 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                                 <FileSignature size={18} className="text-indigo-600" />
                                 Sözleşmeler
                              </h4>
+                             <button
+                                onClick={() => openContractModal()}
+                                className="p-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
+                                title="Yeni Sözleşme"
+                             >
+                                <Plus size={16} />
+                             </button>
                           </div>
                        </div>
                        <div 
@@ -1991,6 +2296,24 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                                                   <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${statusColors[contract.status]}`}>
                                                      {statusLabels[contract.status]}
                                                   </span>
+                                                  {isSelected && (
+                                                     <div className="flex gap-1 mt-2 justify-end">
+                                                        <button
+                                                           onClick={(e) => { e.stopPropagation(); openContractModal(contract); }}
+                                                           className="p-1 text-indigo-600 hover:bg-indigo-50 rounded transition"
+                                                           title="Düzenle"
+                                                        >
+                                                           <Edit size={14} />
+                                                        </button>
+                                                        <button
+                                                           onClick={(e) => { e.stopPropagation(); handleDeleteContract(contract.id); }}
+                                                           className="p-1 text-red-600 hover:bg-red-50 rounded transition"
+                                                           title="Sil"
+                                                        >
+                                                           <Trash2 size={14} />
+                                                        </button>
+                                                     </div>
+                                                  )}
                                                </div>
                                             </div>
                                          </div>
@@ -2010,6 +2333,16 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                                 <Receipt size={18} className="text-blue-600" />
                                 Faturalar
                              </h4>
+                             <button
+                                onClick={() => openInvoiceModal()}
+                                className="p-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                                title="Yeni Fatura"
+                             >
+                                <Plus size={16} />
+                             </button>
+                          </div>
+                          <div className="flex items-center justify-between mt-2">
+                             <div></div>
                              {(() => {
                                 const projectInvoices = invoices
                                    .filter(inv => inv.projectId === selectedProject.id)
@@ -2132,6 +2465,24 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                                                   <span className={`inline-block mt-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${statusColors[invoice.status]}`}>
                                                      {statusLabels[invoice.status]}
                                                   </span>
+                                                  {isSelected && (
+                                                     <div className="flex gap-1 mt-2 justify-end">
+                                                        <button
+                                                           onClick={(e) => { e.stopPropagation(); openInvoiceModal(invoice); }}
+                                                           className="p-1 text-blue-600 hover:bg-blue-50 rounded transition"
+                                                           title="Düzenle"
+                                                        >
+                                                           <Edit size={14} />
+                                                        </button>
+                                                        <button
+                                                           onClick={(e) => { e.stopPropagation(); handleDeleteInvoice(invoice.id); }}
+                                                           className="p-1 text-red-600 hover:bg-red-50 rounded transition"
+                                                           title="Sil"
+                                                        >
+                                                           <Trash2 size={14} />
+                                                        </button>
+                                                     </div>
+                                                  )}
                                                </div>
                                             </div>
                                          </div>
@@ -2151,6 +2502,15 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                                 <Wallet size={18} className="text-green-600" />
                                 Ödemeler
                              </h4>
+                             <button
+                                onClick={() => openPaymentModal()}
+                                className="p-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+                                title="Yeni Ödeme"
+                             >
+                                <Plus size={16} />
+                             </button>
+                          </div>
+                          <div className="flex items-center justify-end mt-2">
                              {(() => {
                                 // Filter payments that belong to invoices of this project and apply entity filter
                                 const projectPayments = payments.filter(p => {
@@ -2331,6 +2691,22 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                                                   <span className={`inline-block mt-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${statusColors[payment.status]}`}>
                                                      {statusLabels[payment.status]}
                                                   </span>
+                                                  <div className="flex gap-1 mt-2 justify-end">
+                                                     <button
+                                                        onClick={(e) => { e.stopPropagation(); openPaymentModal(payment); }}
+                                                        className="p-1 text-green-600 hover:bg-green-50 rounded transition"
+                                                        title="Düzenle"
+                                                     >
+                                                        <Edit size={14} />
+                                                     </button>
+                                                     <button
+                                                        onClick={(e) => { e.stopPropagation(); handleDeletePayment(payment.id); }}
+                                                        className="p-1 text-red-600 hover:bg-red-50 rounded transition"
+                                                        title="Sil"
+                                                     >
+                                                        <Trash2 size={14} />
+                                                     </button>
+                                                  </div>
                                                </div>
                                             </div>
                                          </div>
@@ -2749,6 +3125,516 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
         )}
 
         {projectModal}
+        
+        {/* Contract Modal */}
+        {isContractModalOpen && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl w-full max-w-2xl shadow-2xl max-h-[90vh] flex flex-col">
+              <div className="flex justify-between items-center p-5 border-b border-slate-100 shrink-0">
+                <h3 className="text-lg font-bold text-slate-800">
+                  {editingContractData ? 'Sözleşmeyi Düzenle' : 'Yeni Sözleşme'}
+                </h3>
+                <button onClick={() => setIsContractModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={20}/></button>
+              </div>
+              
+              <div className="p-5 overflow-y-auto space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <label className="block">
+                    <span className="text-xs font-medium text-slate-500 block mb-1">Sözleşme Kodu</span>
+                    <input 
+                      type="text" 
+                      className="w-full p-2.5 border rounded-lg bg-slate-50 font-mono" 
+                      value={contractFormData.code} 
+                      readOnly 
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-medium text-slate-500 block mb-1">Durum</span>
+                    <select 
+                      className="w-full p-2.5 border rounded-lg bg-white"
+                      value={contractFormData.status}
+                      onChange={e => setContractFormData({...contractFormData, status: e.target.value as any})}
+                    >
+                      <option value="draft">Taslak</option>
+                      <option value="active">Aktif</option>
+                      <option value="completed">Tamamlandı</option>
+                      <option value="cancelled">İptal</option>
+                      <option value="expired">Süresi Doldu</option>
+                    </select>
+                  </label>
+                </div>
+                
+                <label className="block">
+                  <span className="text-xs font-medium text-slate-500 block mb-1">Sözleşme Adı *</span>
+                  <input 
+                    type="text" 
+                    className="w-full p-2.5 border rounded-lg" 
+                    value={contractFormData.name} 
+                    onChange={e => setContractFormData({...contractFormData, name: e.target.value})}
+                    placeholder="Örn: Panel Montaj Sözleşmesi"
+                  />
+                </label>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <label className="block">
+                    <span className="text-xs font-medium text-slate-500 block mb-1">Sözleşme Türü</span>
+                    <select 
+                      className="w-full p-2.5 border rounded-lg bg-white"
+                      value={contractFormData.type}
+                      onChange={e => setContractFormData({...contractFormData, type: e.target.value as any})}
+                    >
+                      <option value="customer_agreement">Müşteri Sözleşmesi</option>
+                      <option value="subcontractor_agreement">Taşeron Sözleşmesi</option>
+                      <option value="purchase_order">Satın Alma Siparişi</option>
+                      <option value="service_agreement">Hizmet Sözleşmesi</option>
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-medium text-slate-500 block mb-1">Taraf (Cari) *</span>
+                    <select 
+                      className="w-full p-2.5 border rounded-lg bg-white"
+                      value={contractFormData.entityId}
+                      onChange={e => setContractFormData({...contractFormData, entityId: e.target.value})}
+                    >
+                      <option value="">Seçiniz...</option>
+                      {entities.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                    </select>
+                  </label>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <label className="block">
+                    <span className="text-xs font-medium text-slate-500 block mb-1">Başlangıç Tarihi *</span>
+                    <input 
+                      type="date" 
+                      className="w-full p-2.5 border rounded-lg" 
+                      value={contractFormData.startDate} 
+                      onChange={e => setContractFormData({...contractFormData, startDate: e.target.value})} 
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-medium text-slate-500 block mb-1">Bitiş Tarihi *</span>
+                    <input 
+                      type="date" 
+                      className="w-full p-2.5 border rounded-lg" 
+                      value={contractFormData.endDate} 
+                      onChange={e => setContractFormData({...contractFormData, endDate: e.target.value})} 
+                    />
+                  </label>
+                </div>
+                
+                <div className="grid grid-cols-3 gap-4">
+                  <label className="block">
+                    <span className="text-xs font-medium text-slate-500 block mb-1">Para Birimi</span>
+                    <select 
+                      className="w-full p-2.5 border rounded-lg bg-white"
+                      value={contractFormData.currency}
+                      onChange={e => setContractFormData({...contractFormData, currency: e.target.value as Currency})}
+                    >
+                      {Object.keys(MARKET_RATES).map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-medium text-slate-500 block mb-1">
+                      Tutar {contractFormData.isVatIncluded ? '(KDV Dahil)' : '(KDV Hariç)'}
+                    </span>
+                    <input 
+                      type="number" 
+                      className="w-full p-2.5 border rounded-lg font-mono" 
+                      value={contractFormData.amount} 
+                      onChange={e => setContractFormData({...contractFormData, amount: Number(e.target.value)})} 
+                    />
+                  </label>
+                  <label className="flex items-center gap-2 mt-6">
+                    <input
+                      type="checkbox"
+                      checked={contractFormData.isVatIncluded}
+                      onChange={(e) => setContractFormData({...contractFormData, isVatIncluded: e.target.checked})}
+                      className="w-4 h-4 text-blue-600 border-gray-300 rounded"
+                    />
+                    <span className="text-sm text-slate-700">KDV Dahil</span>
+                  </label>
+                </div>
+                
+                <label className="block">
+                  <span className="text-xs font-medium text-slate-500 block mb-1">Açıklama</span>
+                  <textarea 
+                    className="w-full p-2.5 border rounded-lg h-20 resize-none" 
+                    value={contractFormData.description} 
+                    onChange={e => setContractFormData({...contractFormData, description: e.target.value})}
+                    placeholder="Sözleşme hakkında notlar..."
+                  />
+                </label>
+              </div>
+              
+              <div className="flex gap-3 p-5 border-t border-slate-100 shrink-0 bg-slate-50 rounded-b-xl">
+                <button 
+                  onClick={() => setIsContractModalOpen(false)}
+                  className="flex-1 py-2.5 text-slate-600 hover:bg-white border border-transparent hover:border-slate-200 rounded-lg transition text-sm font-medium"
+                >
+                  İptal
+                </button>
+                <button 
+                  onClick={handleSaveContract}
+                  className="flex-1 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm font-medium shadow-sm"
+                >
+                  {editingContractData ? 'Güncelle' : 'Kaydet'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* Invoice Modal */}
+        {isInvoiceModalOpen && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl w-full max-w-2xl shadow-2xl max-h-[90vh] flex flex-col">
+              <div className="flex justify-between items-center p-5 border-b border-slate-100 shrink-0">
+                <h3 className="text-lg font-bold text-slate-800">
+                  {editingInvoiceData ? 'Faturayı Düzenle' : 'Yeni Fatura'}
+                </h3>
+                <button onClick={() => setIsInvoiceModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={20}/></button>
+              </div>
+              
+              <div className="p-5 overflow-y-auto space-y-4">
+                <div className="grid grid-cols-3 gap-4">
+                  <label className="block">
+                    <span className="text-xs font-medium text-slate-500 block mb-1">Fatura No *</span>
+                    <input 
+                      type="text" 
+                      className="w-full p-2.5 border rounded-lg font-mono" 
+                      value={invoiceFormData.invoiceNumber} 
+                      onChange={e => setInvoiceFormData({...invoiceFormData, invoiceNumber: e.target.value})}
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-medium text-slate-500 block mb-1">Fatura Türü</span>
+                    <select 
+                      className="w-full p-2.5 border rounded-lg bg-white"
+                      value={invoiceFormData.invoiceType}
+                      onChange={e => setInvoiceFormData({...invoiceFormData, invoiceType: e.target.value as any})}
+                    >
+                      <option value="incoming">Gelen Fatura</option>
+                      <option value="outgoing">Giden Fatura</option>
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-medium text-slate-500 block mb-1">Durum</span>
+                    <select 
+                      className="w-full p-2.5 border rounded-lg bg-white"
+                      value={invoiceFormData.status}
+                      onChange={e => setInvoiceFormData({...invoiceFormData, status: e.target.value as any})}
+                    >
+                      <option value="draft">Taslak</option>
+                      <option value="issued">Kesildi</option>
+                      <option value="paid">Ödendi</option>
+                      <option value="overdue">Vadesi Geçti</option>
+                      <option value="cancelled">İptal</option>
+                    </select>
+                  </label>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <label className="block">
+                    <span className="text-xs font-medium text-slate-500 block mb-1">Taraf (Cari) *</span>
+                    <select 
+                      className="w-full p-2.5 border rounded-lg bg-white"
+                      value={invoiceFormData.entityId}
+                      onChange={e => setInvoiceFormData({...invoiceFormData, entityId: e.target.value})}
+                    >
+                      <option value="">Seçiniz...</option>
+                      {entities.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-medium text-slate-500 block mb-1">Bağlı Sözleşme</span>
+                    <select 
+                      className="w-full p-2.5 border rounded-lg bg-white"
+                      value={invoiceFormData.contractId}
+                      onChange={e => {
+                        const contract = contracts.find(c => c.id === e.target.value);
+                        setInvoiceFormData({
+                          ...invoiceFormData, 
+                          contractId: e.target.value,
+                          entityId: contract?.entityId || invoiceFormData.entityId
+                        });
+                      }}
+                    >
+                      <option value="">Seçiniz (Opsiyonel)</option>
+                      {contracts.filter(c => c.projectId === selectedProject?.id).map(c => (
+                        <option key={c.id} value={c.id}>{c.code} - {c.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <label className="block">
+                    <span className="text-xs font-medium text-slate-500 block mb-1">Fatura Tarihi</span>
+                    <input 
+                      type="date" 
+                      className="w-full p-2.5 border rounded-lg" 
+                      value={invoiceFormData.invoiceDate} 
+                      onChange={e => setInvoiceFormData({...invoiceFormData, invoiceDate: e.target.value})} 
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-medium text-slate-500 block mb-1">Vade Tarihi</span>
+                    <input 
+                      type="date" 
+                      className="w-full p-2.5 border rounded-lg" 
+                      value={invoiceFormData.dueDate} 
+                      onChange={e => setInvoiceFormData({...invoiceFormData, dueDate: e.target.value})} 
+                    />
+                  </label>
+                </div>
+                
+                <div className="grid grid-cols-4 gap-4">
+                  <label className="block">
+                    <span className="text-xs font-medium text-slate-500 block mb-1">Para Birimi</span>
+                    <select 
+                      className="w-full p-2.5 border rounded-lg bg-white"
+                      value={invoiceFormData.currency}
+                      onChange={e => setInvoiceFormData({...invoiceFormData, currency: e.target.value as Currency})}
+                    >
+                      {Object.keys(MARKET_RATES).map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-medium text-slate-500 block mb-1">
+                      Tutar {invoiceFormData.isVatIncluded ? '(KDV Dahil)' : '(KDV Hariç)'}
+                    </span>
+                    <input 
+                      type="number" 
+                      className="w-full p-2.5 border rounded-lg font-mono" 
+                      value={invoiceFormData.amount} 
+                      onChange={e => setInvoiceFormData({...invoiceFormData, amount: Number(e.target.value)})} 
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-medium text-slate-500 block mb-1">KDV Oranı (%)</span>
+                    <select 
+                      className="w-full p-2.5 border rounded-lg bg-white"
+                      value={invoiceFormData.vatRate}
+                      onChange={e => setInvoiceFormData({...invoiceFormData, vatRate: Number(e.target.value)})}
+                    >
+                      <option value="0">%0</option>
+                      <option value="1">%1</option>
+                      <option value="10">%10</option>
+                      <option value="20">%20</option>
+                    </select>
+                  </label>
+                  <label className="flex items-center gap-2 mt-6">
+                    <input
+                      type="checkbox"
+                      checked={invoiceFormData.isVatIncluded}
+                      onChange={(e) => setInvoiceFormData({...invoiceFormData, isVatIncluded: e.target.checked})}
+                      className="w-4 h-4 text-blue-600 border-gray-300 rounded"
+                    />
+                    <span className="text-sm text-slate-700">KDV Dahil</span>
+                  </label>
+                </div>
+                
+                {/* Calculated totals display */}
+                {invoiceFormData.amount > 0 && (
+                  <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                    {(() => {
+                      const totals = calculateInvoiceTotals(invoiceFormData.amount, invoiceFormData.vatRate, invoiceFormData.isVatIncluded);
+                      return (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-slate-600">KDV Hariç: <strong>{formatCurrency(totals.amount, invoiceFormData.currency)}</strong></span>
+                          <span className="text-slate-600">KDV: <strong>{formatCurrency(totals.vatAmount, invoiceFormData.currency)}</strong></span>
+                          <span className="text-slate-800 font-bold">Toplam: {formatCurrency(totals.totalAmount, invoiceFormData.currency)}</span>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+                
+                <label className="block">
+                  <span className="text-xs font-medium text-slate-500 block mb-1">Açıklama</span>
+                  <textarea 
+                    className="w-full p-2.5 border rounded-lg h-16 resize-none" 
+                    value={invoiceFormData.description} 
+                    onChange={e => setInvoiceFormData({...invoiceFormData, description: e.target.value})}
+                    placeholder="Fatura açıklaması..."
+                  />
+                </label>
+              </div>
+              
+              <div className="flex gap-3 p-5 border-t border-slate-100 shrink-0 bg-slate-50 rounded-b-xl">
+                <button 
+                  onClick={() => setIsInvoiceModalOpen(false)}
+                  className="flex-1 py-2.5 text-slate-600 hover:bg-white border border-transparent hover:border-slate-200 rounded-lg transition text-sm font-medium"
+                >
+                  İptal
+                </button>
+                <button 
+                  onClick={handleSaveInvoice}
+                  className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium shadow-sm"
+                >
+                  {editingInvoiceData ? 'Güncelle' : 'Kaydet'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* Payment Modal */}
+        {isPaymentModalOpen && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl w-full max-w-lg shadow-2xl max-h-[90vh] flex flex-col">
+              <div className="flex justify-between items-center p-5 border-b border-slate-100 shrink-0">
+                <h3 className="text-lg font-bold text-slate-800">
+                  {editingPaymentData ? 'Ödemeyi Düzenle' : 'Yeni Ödeme'}
+                </h3>
+                <button onClick={() => setIsPaymentModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={20}/></button>
+              </div>
+              
+              <div className="p-5 overflow-y-auto space-y-4">
+                <label className="block">
+                  <span className="text-xs font-medium text-slate-500 block mb-1">Fatura *</span>
+                  <select 
+                    className="w-full p-2.5 border rounded-lg bg-white"
+                    value={paymentFormData.invoiceId}
+                    onChange={e => {
+                      const invoice = invoices.find(inv => inv.id === e.target.value);
+                      setPaymentFormData({
+                        ...paymentFormData, 
+                        invoiceId: e.target.value,
+                        amount: invoice?.totalAmount || 0,
+                        currency: invoice?.currency || 'TRY'
+                      });
+                    }}
+                  >
+                    <option value="">Seçiniz...</option>
+                    {invoices
+                      .filter(inv => inv.projectId === selectedProject?.id)
+                      .filter(inv => selectedContractId === null || inv.contractId === selectedContractId)
+                      .map(inv => (
+                        <option key={inv.id} value={inv.id}>
+                          {inv.invoiceNumber} - {formatCurrency(inv.totalAmount, inv.currency)} ({inv.status === 'paid' ? 'Ödendi' : 'Bekliyor'})
+                        </option>
+                      ))
+                    }
+                  </select>
+                </label>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <label className="block">
+                    <span className="text-xs font-medium text-slate-500 block mb-1">Ödeme Tarihi</span>
+                    <input 
+                      type="date" 
+                      className="w-full p-2.5 border rounded-lg" 
+                      value={paymentFormData.paymentDate} 
+                      onChange={e => setPaymentFormData({...paymentFormData, paymentDate: e.target.value})} 
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-medium text-slate-500 block mb-1">Ödeme Yöntemi</span>
+                    <select 
+                      className="w-full p-2.5 border rounded-lg bg-white"
+                      value={paymentFormData.paymentMethod}
+                      onChange={e => setPaymentFormData({...paymentFormData, paymentMethod: e.target.value as any})}
+                    >
+                      <option value="transfer">Havale/EFT</option>
+                      <option value="cash">Nakit</option>
+                      <option value="card">Kart</option>
+                      <option value="check">Çek</option>
+                    </select>
+                  </label>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <label className="block">
+                    <span className="text-xs font-medium text-slate-500 block mb-1">Tutar *</span>
+                    <input 
+                      type="number" 
+                      className="w-full p-2.5 border rounded-lg font-mono" 
+                      value={paymentFormData.amount} 
+                      onChange={e => setPaymentFormData({...paymentFormData, amount: Number(e.target.value)})} 
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-medium text-slate-500 block mb-1">Para Birimi</span>
+                    <select 
+                      className="w-full p-2.5 border rounded-lg bg-white"
+                      value={paymentFormData.currency}
+                      onChange={e => setPaymentFormData({...paymentFormData, currency: e.target.value as Currency})}
+                    >
+                      {Object.keys(MARKET_RATES).map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </label>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <label className="block">
+                    <span className="text-xs font-medium text-slate-500 block mb-1">Banka Hesabı</span>
+                    <select 
+                      className="w-full p-2.5 border rounded-lg bg-white"
+                      value={paymentFormData.bankAccountId}
+                      onChange={e => setPaymentFormData({...paymentFormData, bankAccountId: e.target.value, bankCardId: ''})}
+                    >
+                      <option value="">Seçiniz...</option>
+                      {bankAccounts.map(a => (
+                        <option key={a.id} value={a.id}>{a.bankName} - {a.accountName}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-medium text-slate-500 block mb-1">Durum</span>
+                    <select 
+                      className="w-full p-2.5 border rounded-lg bg-white"
+                      value={paymentFormData.status}
+                      onChange={e => setPaymentFormData({...paymentFormData, status: e.target.value as any})}
+                    >
+                      <option value="pending">Beklemede</option>
+                      <option value="completed">Tamamlandı</option>
+                      <option value="failed">Başarısız</option>
+                      <option value="cancelled">İptal</option>
+                    </select>
+                  </label>
+                </div>
+                
+                <label className="block">
+                  <span className="text-xs font-medium text-slate-500 block mb-1">Referans No</span>
+                  <input 
+                    type="text" 
+                    className="w-full p-2.5 border rounded-lg" 
+                    value={paymentFormData.referenceNumber} 
+                    onChange={e => setPaymentFormData({...paymentFormData, referenceNumber: e.target.value})}
+                    placeholder="Dekont/İşlem numarası..."
+                  />
+                </label>
+                
+                <label className="block">
+                  <span className="text-xs font-medium text-slate-500 block mb-1">Açıklama</span>
+                  <textarea 
+                    className="w-full p-2.5 border rounded-lg h-16 resize-none" 
+                    value={paymentFormData.description} 
+                    onChange={e => setPaymentFormData({...paymentFormData, description: e.target.value})}
+                    placeholder="Ödeme açıklaması..."
+                  />
+                </label>
+              </div>
+              
+              <div className="flex gap-3 p-5 border-t border-slate-100 shrink-0 bg-slate-50 rounded-b-xl">
+                <button 
+                  onClick={() => setIsPaymentModalOpen(false)}
+                  className="flex-1 py-2.5 text-slate-600 hover:bg-white border border-transparent hover:border-slate-200 rounded-lg transition text-sm font-medium"
+                >
+                  İptal
+                </button>
+                <button 
+                  onClick={handleSavePayment}
+                  className="flex-1 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-medium shadow-sm"
+                >
+                  {editingPaymentData ? 'Güncelle' : 'Kaydet'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
     </div>
   );
   }
