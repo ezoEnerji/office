@@ -597,6 +597,14 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
     return invoice?.invoiceType === 'outgoing' ? 'incoming' : 'outgoing';
   };
   
+  // Faturanın kalan miktarını hesapla
+  const getInvoiceRemainingAmount = (invoice: any): number => {
+    if (!invoice) return 0;
+    const invoicePayments = payments.filter(p => p.invoiceId === invoice.id && p.status === 'completed');
+    const totalPaid = invoicePayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+    return Math.max(invoice.totalAmount - totalPaid, 0);
+  };
+  
   const openPaymentModal = (payment?: any) => {
     setPaymentFile(null); // Reset file
     if (payment) {
@@ -618,10 +626,12 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
     } else {
       setEditingPaymentData(null);
       const selectedInvoice = selectedInvoiceId ? invoices.find(inv => inv.id === selectedInvoiceId) : null;
+      // Kalan miktarı hesapla
+      const remainingAmount = getInvoiceRemainingAmount(selectedInvoice);
       setPaymentFormData({
         paymentType: getPaymentTypeFromInvoice(selectedInvoice),
         paymentDate: new Date().toISOString().split('T')[0],
-        amount: selectedInvoice ? selectedInvoice.totalAmount : 0,
+        amount: remainingAmount, // Kalan miktarı getir
         currency: selectedInvoice?.currency || selectedProject?.agreementCurrency || 'TRY',
         paymentMethod: 'transfer',
         invoiceId: selectedInvoiceId || '',
@@ -3930,10 +3940,12 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                     value={paymentFormData.invoiceId}
                     onChange={e => {
                       const invoice = invoices.find(inv => inv.id === e.target.value);
+                      // Faturanın kalan miktarını hesapla
+                      const remainingAmount = getInvoiceRemainingAmount(invoice);
                       setPaymentFormData({
                         ...paymentFormData, 
                         invoiceId: e.target.value,
-                        amount: invoice?.totalAmount || 0,
+                        amount: remainingAmount, // Kalan miktarı getir
                         currency: invoice?.currency || 'TRY',
                         // Fatura türüne göre ödeme türünü otomatik ayarla
                         paymentType: getPaymentTypeFromInvoice(invoice)
@@ -3944,11 +3956,14 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                     {invoices
                       .filter(inv => inv.projectId === selectedProject?.id)
                       .filter(inv => selectedContractId === null || inv.contractId === selectedContractId)
-                      .map(inv => (
-                        <option key={inv.id} value={inv.id}>
-                          {inv.invoiceNumber} - {formatCurrency(inv.totalAmount, inv.currency)} ({inv.invoiceType === 'incoming' ? 'Gelen' : 'Giden'} - {inv.status === 'paid' ? 'Ödendi' : 'Bekliyor'})
-                        </option>
-                      ))
+                      .map(inv => {
+                        const remaining = getInvoiceRemainingAmount(inv);
+                        return (
+                          <option key={inv.id} value={inv.id}>
+                            {inv.invoiceNumber} - Kalan: {formatCurrency(remaining, inv.currency)} / {formatCurrency(inv.totalAmount, inv.currency)} ({inv.invoiceType === 'incoming' ? 'Gelen' : 'Giden'})
+                          </option>
+                        );
+                      })
                     }
                   </select>
                 </label>
