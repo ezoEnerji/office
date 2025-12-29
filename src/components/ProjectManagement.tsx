@@ -160,7 +160,7 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
     invoiceDate: new Date().toISOString().split('T')[0],
     dueDate: '',
     amount: 0,
-    vatRate: 20,
+    taxes: [] as TaxItem[],
     vatAmount: 0,
     totalAmount: 0,
     currency: 'TRY' as Currency,
@@ -172,6 +172,7 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
     description: '',
     isVatIncluded: false
   });
+  const [invoiceSelectedTaxId, setInvoiceSelectedTaxId] = useState<string>('');
   
   // Payment Modal State
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -329,7 +330,7 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
         invoiceDate: invoice.invoiceDate ? new Date(invoice.invoiceDate).toISOString().split('T')[0] : '',
         dueDate: invoice.dueDate ? new Date(invoice.dueDate).toISOString().split('T')[0] : '',
         amount: invoice.amount,
-        vatRate: invoice.vatAmount && invoice.amount ? Math.round((invoice.vatAmount / invoice.amount) * 100) : 20,
+        taxes: invoice.taxes && Array.isArray(invoice.taxes) ? invoice.taxes : [],
         vatAmount: invoice.vatAmount,
         totalAmount: invoice.totalAmount,
         currency: invoice.currency,
@@ -345,13 +346,14 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
       setEditingInvoiceData(null);
       const year = new Date().getFullYear();
       const projectInvoices = invoices.filter(inv => inv.projectId === selectedProject?.id);
+      const timestamp = Date.now().toString(36).slice(-4).toUpperCase();
       setInvoiceFormData({
-        invoiceNumber: `INV${year}${String(projectInvoices.length + 1).padStart(8, '0')}`,
+        invoiceNumber: `INV${year}${String(projectInvoices.length + 1).padStart(4, '0')}${timestamp}`,
         invoiceType: 'incoming',
         invoiceDate: new Date().toISOString().split('T')[0],
         dueDate: '',
         amount: 0,
-        vatRate: 20,
+        taxes: [],
         vatAmount: 0,
         totalAmount: 0,
         currency: selectedProject?.agreementCurrency || 'TRY',
@@ -364,17 +366,93 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
         isVatIncluded: false
       });
     }
+    setInvoiceSelectedTaxId('');
     setIsInvoiceModalOpen(true);
   };
   
-  const calculateInvoiceTotals = (amount: number, vatRate: number, isVatIncluded: boolean) => {
-    if (isVatIncluded) {
-      const baseAmount = amount / (1 + vatRate / 100);
-      const vatAmount = amount - baseAmount;
-      return { amount: baseAmount, vatAmount, totalAmount: amount };
+  // Invoice Tax Functions
+  const addInvoiceTax = () => {
+    if (!invoiceFormData.amount || !invoiceSelectedTaxId) {
+      alert('Lütfen önce tutar girin ve bir vergi seçin');
+      return;
+    }
+    
+    const selectedTax = taxes.find(t => t.id === invoiceSelectedTaxId);
+    if (!selectedTax) return;
+    
+    // Aynı vergi zaten eklenmişse uyar
+    if (invoiceFormData.taxes.some(t => t.taxId === selectedTax.id)) {
+      alert('Bu vergi zaten eklenmiş');
+      return;
+    }
+    
+    // Hesaplama tabanına göre base amount'u belirle
+    let baseAmount: number;
+    if (selectedTax.baseType === 'amount') {
+      baseAmount = invoiceFormData.amount;
+    } else if (selectedTax.baseType === 'vat') {
+      const kdvTax = invoiceFormData.taxes.find(t => t.name.toLowerCase().includes('kdv'));
+      baseAmount = kdvTax ? kdvTax.amount : (invoiceFormData.amount * 0.20);
     } else {
-      const vatAmount = amount * (vatRate / 100);
-      return { amount, vatAmount, totalAmount: amount + vatAmount };
+      const currentTotal = invoiceFormData.taxes.reduce((sum, t) => sum + t.amount, 0);
+      baseAmount = invoiceFormData.amount + currentTotal;
+    }
+    
+    // Hesaplama tipine göre vergi tutarını hesapla
+    let taxAmount: number;
+    if (selectedTax.calculationType === 'percentage') {
+      taxAmount = (baseAmount * selectedTax.rate) / 100;
+    } else {
+      taxAmount = selectedTax.rate;
+    }
+    
+    // KDV dahil durumuna göre düzeltme
+    if (selectedTax.baseType === 'amount' && invoiceFormData.isVatIncluded && selectedTax.name.toLowerCase().includes('kdv')) {
+      taxAmount = (invoiceFormData.amount * selectedTax.rate) / (100 + selectedTax.rate);
+    }
+    
+    const newTaxItem: TaxItem = {
+      id: `tax_${Date.now()}`,
+      taxId: selectedTax.id,
+      name: selectedTax.name,
+      rate: selectedTax.rate,
+      amount: taxAmount,
+      calculationType: selectedTax.calculationType,
+      baseType: selectedTax.baseType
+    };
+    
+    setInvoiceFormData({
+      ...invoiceFormData,
+      taxes: [...invoiceFormData.taxes, newTaxItem]
+    });
+    setInvoiceSelectedTaxId('');
+  };
+  
+  const removeInvoiceTax = (taxId: string) => {
+    setInvoiceFormData({
+      ...invoiceFormData,
+      taxes: invoiceFormData.taxes.filter(t => t.id !== taxId)
+    });
+  };
+  
+  const calculateInvoiceTotals = () => {
+    const baseAmount = invoiceFormData.amount;
+    const totalTaxes = invoiceFormData.taxes.reduce((sum, t) => sum + t.amount, 0);
+    
+    if (invoiceFormData.isVatIncluded) {
+      // Tutar KDV dahil ise, vergiler dahil toplam = girilen tutar
+      return { 
+        amount: baseAmount - totalTaxes, 
+        vatAmount: totalTaxes, 
+        totalAmount: baseAmount 
+      };
+    } else {
+      // Tutar KDV hariç ise, vergiler eklenir
+      return { 
+        amount: baseAmount, 
+        vatAmount: totalTaxes, 
+        totalAmount: baseAmount + totalTaxes 
+      };
     }
   };
   
@@ -384,12 +462,24 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
       return;
     }
     try {
-      const totals = calculateInvoiceTotals(invoiceFormData.amount, invoiceFormData.vatRate, invoiceFormData.isVatIncluded);
+      const totals = calculateInvoiceTotals();
       const dataToSave = {
-        ...invoiceFormData,
+        invoiceNumber: invoiceFormData.invoiceNumber,
+        invoiceType: invoiceFormData.invoiceType,
+        invoiceDate: invoiceFormData.invoiceDate,
+        dueDate: invoiceFormData.dueDate,
         amount: totals.amount,
         vatAmount: totals.vatAmount,
-        totalAmount: totals.totalAmount
+        totalAmount: totals.totalAmount,
+        currency: invoiceFormData.currency,
+        status: invoiceFormData.status,
+        projectId: invoiceFormData.projectId,
+        companyId: invoiceFormData.companyId,
+        entityId: invoiceFormData.entityId,
+        contractId: invoiceFormData.contractId,
+        description: invoiceFormData.description,
+        isVatIncluded: invoiceFormData.isVatIncluded,
+        taxes: invoiceFormData.taxes.length > 0 ? invoiceFormData.taxes : null
       };
       
       if (editingInvoiceData) {
@@ -3406,7 +3496,7 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                   </label>
                 </div>
                 
-                <div className="grid grid-cols-4 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                   <label className="block">
                     <span className="text-xs font-medium text-slate-500 block mb-1">Para Birimi</span>
                     <select 
@@ -3419,7 +3509,7 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                   </label>
                   <label className="block">
                     <span className="text-xs font-medium text-slate-500 block mb-1">
-                      Tutar {invoiceFormData.isVatIncluded ? '(KDV Dahil)' : '(KDV Hariç)'}
+                      Tutar {invoiceFormData.isVatIncluded ? '(Vergiler Dahil)' : '(Vergiler Hariç)'}
                     </span>
                     <input 
                       type="number" 
@@ -3428,19 +3518,6 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                       onChange={e => setInvoiceFormData({...invoiceFormData, amount: Number(e.target.value)})} 
                     />
                   </label>
-                  <label className="block">
-                    <span className="text-xs font-medium text-slate-500 block mb-1">KDV Oranı (%)</span>
-                    <select 
-                      className="w-full p-2.5 border rounded-lg bg-white"
-                      value={invoiceFormData.vatRate}
-                      onChange={e => setInvoiceFormData({...invoiceFormData, vatRate: Number(e.target.value)})}
-                    >
-                      <option value="0">%0</option>
-                      <option value="1">%1</option>
-                      <option value="10">%10</option>
-                      <option value="20">%20</option>
-                    </select>
-                  </label>
                   <label className="flex items-center gap-2 mt-6">
                     <input
                       type="checkbox"
@@ -3448,20 +3525,83 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                       onChange={(e) => setInvoiceFormData({...invoiceFormData, isVatIncluded: e.target.checked})}
                       className="w-4 h-4 text-blue-600 border-gray-300 rounded"
                     />
-                    <span className="text-sm text-slate-700">KDV Dahil</span>
+                    <span className="text-sm text-slate-700">Vergiler Dahil</span>
                   </label>
+                </div>
+                
+                {/* Dynamic Tax Section */}
+                <div className="border border-slate-200 rounded-lg p-4 bg-slate-50/50">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-xs font-semibold text-slate-600">Vergiler</span>
+                    <div className="flex items-center gap-2">
+                      <select
+                        className="p-2 border rounded-lg text-sm bg-white min-w-[180px]"
+                        value={invoiceSelectedTaxId}
+                        onChange={e => setInvoiceSelectedTaxId(e.target.value)}
+                      >
+                        <option value="">Vergi Seçin...</option>
+                        {taxes.filter(t => t.isActive).sort((a, b) => a.order - b.order).map(t => (
+                          <option key={t.id} value={t.id}>
+                            {t.name} ({t.calculationType === 'percentage' ? `%${t.rate}` : `${t.rate} ${invoiceFormData.currency}`})
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={addInvoiceTax}
+                        disabled={!invoiceSelectedTaxId || !invoiceFormData.amount}
+                        className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                      >
+                        <Plus size={16} />
+                      </button>
+                    </div>
+                  </div>
+                  
+                  {invoiceFormData.taxes.length > 0 ? (
+                    <div className="space-y-2">
+                      {invoiceFormData.taxes.map(tax => (
+                        <div key={tax.id} className="flex items-center justify-between bg-white p-2.5 rounded-lg border border-slate-200">
+                          <div className="flex items-center gap-3">
+                            <span className="text-sm font-medium text-slate-700">{tax.name}</span>
+                            <span className="text-xs text-slate-400">
+                              ({tax.calculationType === 'percentage' ? `%${tax.rate}` : `Sabit: ${tax.rate}`})
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="font-mono font-bold text-slate-800">{formatCurrency(tax.amount, invoiceFormData.currency)}</span>
+                            <button
+                              type="button"
+                              onClick={() => removeInvoiceTax(tax.id)}
+                              className="p-1 text-red-500 hover:bg-red-50 rounded transition"
+                            >
+                              <X size={16} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-3 text-slate-400 text-sm">
+                      Henüz vergi eklenmedi. Yukarıdan vergi seçerek ekleyebilirsiniz.
+                    </div>
+                  )}
                 </div>
                 
                 {/* Calculated totals display */}
                 {invoiceFormData.amount > 0 && (
-                  <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
                     {(() => {
-                      const totals = calculateInvoiceTotals(invoiceFormData.amount, invoiceFormData.vatRate, invoiceFormData.isVatIncluded);
+                      const totals = calculateInvoiceTotals();
                       return (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-slate-600">KDV Hariç: <strong>{formatCurrency(totals.amount, invoiceFormData.currency)}</strong></span>
-                          <span className="text-slate-600">KDV: <strong>{formatCurrency(totals.vatAmount, invoiceFormData.currency)}</strong></span>
-                          <span className="text-slate-800 font-bold">Toplam: {formatCurrency(totals.totalAmount, invoiceFormData.currency)}</span>
+                        <div className="flex justify-between items-center text-sm">
+                          <div className="space-y-1">
+                            <div className="text-slate-600">KDV Hariç Tutar: <strong>{formatCurrency(totals.amount, invoiceFormData.currency)}</strong></div>
+                            <div className="text-slate-600">Toplam Vergi: <strong>{formatCurrency(totals.vatAmount, invoiceFormData.currency)}</strong></div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-xs text-slate-500 mb-1">Genel Toplam</div>
+                            <div className="text-xl font-bold text-blue-700">{formatCurrency(totals.totalAmount, invoiceFormData.currency)}</div>
+                          </div>
                         </div>
                       );
                     })()}
