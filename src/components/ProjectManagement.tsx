@@ -742,6 +742,8 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
       // Also reload invoices to update paid status
       const projectCompany = companies.find(c => c.id === selectedProject?.companyId);
       if (projectCompany) await loadInvoices(projectCompany.id);
+      // Refresh transactions list (payment creates automatic transaction)
+      if (onRefreshTransactions) onRefreshTransactions();
     } catch (error: any) {
       alert(error.message || 'Kayıt sırasında bir hata oluştu');
     }
@@ -754,6 +756,8 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
         await loadPayments();
         const projectCompany = companies.find(c => c.id === selectedProject?.companyId);
         if (projectCompany) await loadInvoices(projectCompany.id);
+        // Refresh transactions list (payment deletion also deletes linked transaction)
+        if (onRefreshTransactions) onRefreshTransactions();
       } catch (error: any) {
         alert(error.message || 'Silme sırasında bir hata oluştu');
       }
