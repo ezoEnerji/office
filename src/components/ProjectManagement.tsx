@@ -140,6 +140,7 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
   const [editingContractData, setEditingContractData] = useState<Contract | null>(null);
   const [contractFile, setContractFile] = useState<File | null>(null);
   const [contractFileUploading, setContractFileUploading] = useState(false);
+  const [viewingContract, setViewingContract] = useState<Contract | null>(null); // Detail view
   const [contractFormData, setContractFormData] = useState({
     code: '',
     name: '',
@@ -164,6 +165,7 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
   const [editingInvoiceData, setEditingInvoiceData] = useState<any | null>(null);
   const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
   const [invoiceFileUploading, setInvoiceFileUploading] = useState(false);
+  const [viewingInvoice, setViewingInvoice] = useState<any | null>(null); // Detail view
   const [invoiceFormData, setInvoiceFormData] = useState({
     invoiceNumber: '',
     invoiceType: 'incoming' as 'incoming' | 'outgoing',
@@ -190,6 +192,7 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
   const [editingPaymentData, setEditingPaymentData] = useState<any | null>(null);
   const [paymentFile, setPaymentFile] = useState<File | null>(null);
   const [paymentFileUploading, setPaymentFileUploading] = useState(false);
+  const [viewingPayment, setViewingPayment] = useState<any | null>(null); // Detail view
   const [paymentFormData, setPaymentFormData] = useState({
     paymentType: 'outgoing' as 'incoming' | 'outgoing', // incoming = gelen ödeme, outgoing = giden ödeme
     paymentDate: new Date().toISOString().split('T')[0],
@@ -2517,6 +2520,13 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                                                   {isSelected && (
                                                      <div className="flex gap-1 mt-2 justify-end">
                                                         <button
+                                                           onClick={(e) => { e.stopPropagation(); setViewingContract(contract); }}
+                                                           className="p-1 text-slate-600 hover:bg-slate-50 rounded transition"
+                                                           title="Detay Görüntüle"
+                                                        >
+                                                           <Eye size={14} />
+                                                        </button>
+                                                        <button
                                                            onClick={(e) => { e.stopPropagation(); openContractModal(contract); }}
                                                            className="p-1 text-indigo-600 hover:bg-indigo-50 rounded transition"
                                                            title="Düzenle"
@@ -2685,6 +2695,13 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                                                   </span>
                                                   {isSelected && (
                                                      <div className="flex gap-1 mt-2 justify-end">
+                                                        <button
+                                                           onClick={(e) => { e.stopPropagation(); setViewingInvoice(invoice); }}
+                                                           className="p-1 text-slate-600 hover:bg-slate-50 rounded transition"
+                                                           title="Detay Görüntüle"
+                                                        >
+                                                           <Eye size={14} />
+                                                        </button>
                                                         <button
                                                            onClick={(e) => { e.stopPropagation(); openInvoiceModal(invoice); }}
                                                            className="p-1 text-blue-600 hover:bg-blue-50 rounded transition"
@@ -2926,6 +2943,13 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                                                      {statusLabels[payment.status]}
                                                   </span>
                                                   <div className="flex gap-1 mt-2 justify-end">
+                                                     <button
+                                                        onClick={(e) => { e.stopPropagation(); setViewingPayment(payment); }}
+                                                        className="p-1 text-slate-600 hover:bg-slate-50 rounded transition"
+                                                        title="Detay Görüntüle"
+                                                     >
+                                                        <Eye size={14} />
+                                                     </button>
                                                      <button
                                                         onClick={(e) => { e.stopPropagation(); openPaymentModal(payment); }}
                                                         className="p-1 text-green-600 hover:bg-green-50 rounded transition"
@@ -4090,6 +4114,422 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                   ) : (
                     editingPaymentData ? 'Güncelle' : 'Kaydet'
                   )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* Contract Detail View Modal */}
+        {viewingContract && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl w-full max-w-2xl shadow-2xl max-h-[90vh] flex flex-col">
+              <div className="flex justify-between items-center p-5 border-b border-slate-100 shrink-0 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-t-xl">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-white/20 rounded-lg">
+                    <FileSignature size={20} className="text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-white">{viewingContract.name}</h3>
+                    <span className="text-indigo-100 text-sm font-mono">{viewingContract.code}</span>
+                  </div>
+                </div>
+                <button onClick={() => setViewingContract(null)} className="text-white/80 hover:text-white p-1"><X size={20}/></button>
+              </div>
+              
+              <div className="p-6 overflow-y-auto space-y-6">
+                {/* Status & Type */}
+                <div className="flex items-center gap-3 flex-wrap">
+                  <span className={`px-3 py-1.5 rounded-full text-sm font-medium ${
+                    viewingContract.status === 'active' ? 'bg-green-100 text-green-700' :
+                    viewingContract.status === 'draft' ? 'bg-gray-100 text-gray-700' :
+                    viewingContract.status === 'completed' ? 'bg-blue-100 text-blue-700' :
+                    'bg-red-100 text-red-700'
+                  }`}>
+                    {viewingContract.status === 'active' ? 'Aktif' : 
+                     viewingContract.status === 'draft' ? 'Taslak' :
+                     viewingContract.status === 'completed' ? 'Tamamlandı' : 'İptal'}
+                  </span>
+                  <span className="px-3 py-1.5 bg-slate-100 text-slate-700 rounded-full text-sm">
+                    {viewingContract.type === 'subcontractor_agreement' ? 'Taşeron Sözleşmesi' :
+                     viewingContract.type === 'sales_contract' ? 'Satış Sözleşmesi' :
+                     viewingContract.type === 'service_agreement' ? 'Hizmet Sözleşmesi' :
+                     viewingContract.type === 'purchase_agreement' ? 'Satın Alma Sözleşmesi' : viewingContract.type}
+                  </span>
+                </div>
+                
+                {/* Entity Info */}
+                <div className="bg-slate-50 p-4 rounded-xl">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-slate-200 rounded-lg">
+                      <Building2 size={18} className="text-slate-600" />
+                    </div>
+                    <div>
+                      <div className="text-xs text-slate-500">Taraf</div>
+                      <div className="font-semibold text-slate-800">
+                        {entities.find(e => e.id === viewingContract.entityId)?.name || 'Bilinmiyor'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Date & Amount Grid */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-indigo-50 p-4 rounded-xl">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Calendar size={16} className="text-indigo-600" />
+                      <span className="text-xs font-medium text-indigo-600">Tarih Aralığı</span>
+                    </div>
+                    <div className="text-sm text-slate-700">
+                      {new Date(viewingContract.startDate).toLocaleDateString('tr-TR')} - {new Date(viewingContract.endDate).toLocaleDateString('tr-TR')}
+                    </div>
+                  </div>
+                  <div className="bg-green-50 p-4 rounded-xl">
+                    <div className="flex items-center gap-2 mb-2">
+                      <DollarSign size={16} className="text-green-600" />
+                      <span className="text-xs font-medium text-green-600">
+                        Sözleşme Bedeli {viewingContract.isVatIncluded ? '(KDV Dahil)' : '(KDV Hariç)'}
+                      </span>
+                    </div>
+                    <div className="text-xl font-bold text-green-700">
+                      {formatCurrency(viewingContract.amount, viewingContract.currency)}
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Payment Terms */}
+                {viewingContract.paymentTerms && (
+                  <div className="bg-amber-50 p-4 rounded-xl">
+                    <div className="text-xs font-medium text-amber-600 mb-1">Ödeme Koşulları</div>
+                    <div className="text-sm text-slate-700">{viewingContract.paymentTerms}</div>
+                  </div>
+                )}
+                
+                {/* Description */}
+                {viewingContract.description && (
+                  <div className="bg-slate-50 p-4 rounded-xl">
+                    <div className="text-xs font-medium text-slate-500 mb-1">Açıklama</div>
+                    <div className="text-sm text-slate-700">{viewingContract.description}</div>
+                  </div>
+                )}
+                
+                {/* Document Link */}
+                {(viewingContract as any).documentUrl && (
+                  <a 
+                    href={(viewingContract as any).documentUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 p-3 bg-indigo-100 text-indigo-700 rounded-xl hover:bg-indigo-200 transition font-medium"
+                  >
+                    <FileText size={18} />
+                    Sözleşme PDF'ini Görüntüle
+                    <ExternalLink size={14} />
+                  </a>
+                )}
+              </div>
+              
+              <div className="flex gap-3 p-5 border-t border-slate-100 shrink-0 bg-slate-50 rounded-b-xl">
+                <button 
+                  onClick={() => setViewingContract(null)}
+                  className="flex-1 py-2.5 text-slate-600 hover:bg-white border border-transparent hover:border-slate-200 rounded-lg transition text-sm font-medium"
+                >
+                  Kapat
+                </button>
+                <button 
+                  onClick={() => { openContractModal(viewingContract); setViewingContract(null); }}
+                  className="flex-1 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm font-medium shadow-sm flex items-center justify-center gap-2"
+                >
+                  <Edit size={16} />
+                  Düzenle
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* Invoice Detail View Modal */}
+        {viewingInvoice && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl w-full max-w-2xl shadow-2xl max-h-[90vh] flex flex-col">
+              <div className={`flex justify-between items-center p-5 border-b border-slate-100 shrink-0 rounded-t-xl ${
+                viewingInvoice.invoiceType === 'incoming' 
+                  ? 'bg-gradient-to-r from-orange-500 to-red-500' 
+                  : 'bg-gradient-to-r from-green-500 to-emerald-500'
+              }`}>
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-white/20 rounded-lg">
+                    <Receipt size={20} className="text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-white">{viewingInvoice.invoiceNumber}</h3>
+                    <span className={`text-sm ${viewingInvoice.invoiceType === 'incoming' ? 'text-orange-100' : 'text-green-100'}`}>
+                      {viewingInvoice.invoiceType === 'incoming' ? 'Gelen Fatura' : 'Giden Fatura'}
+                    </span>
+                  </div>
+                </div>
+                <button onClick={() => setViewingInvoice(null)} className="text-white/80 hover:text-white p-1"><X size={20}/></button>
+              </div>
+              
+              <div className="p-6 overflow-y-auto space-y-6">
+                {/* Status */}
+                <div className="flex items-center gap-3 flex-wrap">
+                  <span className={`px-3 py-1.5 rounded-full text-sm font-medium ${
+                    viewingInvoice.status === 'paid' ? 'bg-green-100 text-green-700' :
+                    viewingInvoice.status === 'issued' ? 'bg-blue-100 text-blue-700' :
+                    viewingInvoice.status === 'overdue' ? 'bg-red-100 text-red-700' :
+                    viewingInvoice.status === 'cancelled' ? 'bg-gray-100 text-gray-700' :
+                    'bg-yellow-100 text-yellow-700'
+                  }`}>
+                    {viewingInvoice.status === 'paid' ? 'Ödendi' : 
+                     viewingInvoice.status === 'issued' ? 'Kesildi' :
+                     viewingInvoice.status === 'overdue' ? 'Vadesi Geçmiş' :
+                     viewingInvoice.status === 'cancelled' ? 'İptal' : 'Taslak'}
+                  </span>
+                  <span className={`px-3 py-1.5 rounded-full text-sm font-medium ${
+                    viewingInvoice.invoiceType === 'incoming' ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'
+                  }`}>
+                    {viewingInvoice.invoiceType === 'incoming' ? 'Gelen' : 'Giden'}
+                  </span>
+                </div>
+                
+                {/* Entity Info */}
+                <div className="bg-slate-50 p-4 rounded-xl">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-slate-200 rounded-lg">
+                      <Building2 size={18} className="text-slate-600" />
+                    </div>
+                    <div>
+                      <div className="text-xs text-slate-500">{viewingInvoice.invoiceType === 'incoming' ? 'Gönderen' : 'Alıcı'}</div>
+                      <div className="font-semibold text-slate-800">
+                        {entities.find(e => e.id === viewingInvoice.entityId)?.name || 'Bilinmiyor'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Date Grid */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-blue-50 p-4 rounded-xl">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Calendar size={16} className="text-blue-600" />
+                      <span className="text-xs font-medium text-blue-600">Fatura Tarihi</span>
+                    </div>
+                    <div className="text-sm font-semibold text-slate-700">
+                      {new Date(viewingInvoice.invoiceDate).toLocaleDateString('tr-TR')}
+                    </div>
+                  </div>
+                  <div className={`p-4 rounded-xl ${viewingInvoice.dueDate ? 'bg-amber-50' : 'bg-slate-50'}`}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Clock size={16} className={viewingInvoice.dueDate ? 'text-amber-600' : 'text-slate-400'} />
+                      <span className={`text-xs font-medium ${viewingInvoice.dueDate ? 'text-amber-600' : 'text-slate-400'}`}>Vade Tarihi</span>
+                    </div>
+                    <div className="text-sm font-semibold text-slate-700">
+                      {viewingInvoice.dueDate ? new Date(viewingInvoice.dueDate).toLocaleDateString('tr-TR') : '-'}
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Amount Details */}
+                <div className="bg-gradient-to-br from-slate-50 to-slate-100 p-5 rounded-xl space-y-3">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-slate-600">Tutar {viewingInvoice.isVatIncluded ? '(Vergiler Dahil)' : '(Vergiler Hariç)'}</span>
+                    <span className="font-mono font-semibold">{formatCurrency(viewingInvoice.amount, viewingInvoice.currency)}</span>
+                  </div>
+                  {viewingInvoice.taxes && Array.isArray(viewingInvoice.taxes) && viewingInvoice.taxes.length > 0 && (
+                    <div className="border-t border-slate-200 pt-3 space-y-2">
+                      {viewingInvoice.taxes.map((tax: any, idx: number) => (
+                        <div key={idx} className="flex justify-between items-center text-sm">
+                          <span className="text-slate-500">{tax.name} ({tax.calculationType === 'percentage' ? `%${tax.rate}` : 'Sabit'})</span>
+                          <span className="font-mono text-slate-600">{formatCurrency(tax.amount, viewingInvoice.currency)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="border-t-2 border-slate-300 pt-3 flex justify-between items-center">
+                    <span className="font-semibold text-slate-700">Genel Toplam</span>
+                    <span className="text-xl font-bold text-slate-800">{formatCurrency(viewingInvoice.totalAmount, viewingInvoice.currency)}</span>
+                  </div>
+                </div>
+                
+                {/* Description */}
+                {viewingInvoice.description && (
+                  <div className="bg-slate-50 p-4 rounded-xl">
+                    <div className="text-xs font-medium text-slate-500 mb-1">Açıklama</div>
+                    <div className="text-sm text-slate-700">{viewingInvoice.description}</div>
+                  </div>
+                )}
+                
+                {/* Document Link */}
+                {viewingInvoice.documentUrl && (
+                  <a 
+                    href={viewingInvoice.documentUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 p-3 bg-blue-100 text-blue-700 rounded-xl hover:bg-blue-200 transition font-medium"
+                  >
+                    <FileText size={18} />
+                    Fatura PDF'ini Görüntüle
+                    <ExternalLink size={14} />
+                  </a>
+                )}
+              </div>
+              
+              <div className="flex gap-3 p-5 border-t border-slate-100 shrink-0 bg-slate-50 rounded-b-xl">
+                <button 
+                  onClick={() => setViewingInvoice(null)}
+                  className="flex-1 py-2.5 text-slate-600 hover:bg-white border border-transparent hover:border-slate-200 rounded-lg transition text-sm font-medium"
+                >
+                  Kapat
+                </button>
+                <button 
+                  onClick={() => { openInvoiceModal(viewingInvoice); setViewingInvoice(null); }}
+                  className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium shadow-sm flex items-center justify-center gap-2"
+                >
+                  <Edit size={16} />
+                  Düzenle
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* Payment Detail View Modal */}
+        {viewingPayment && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl w-full max-w-lg shadow-2xl max-h-[90vh] flex flex-col">
+              <div className={`flex justify-between items-center p-5 border-b border-slate-100 shrink-0 rounded-t-xl ${
+                viewingPayment.paymentType === 'incoming' 
+                  ? 'bg-gradient-to-r from-green-500 to-emerald-500' 
+                  : 'bg-gradient-to-r from-red-500 to-rose-500'
+              }`}>
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-white/20 rounded-lg">
+                    {viewingPayment.paymentType === 'incoming' ? <ArrowDownLeft size={20} className="text-white" /> : <ArrowUpRight size={20} className="text-white" />}
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-white">
+                      {viewingPayment.paymentType === 'incoming' ? 'Gelen Ödeme' : 'Giden Ödeme'}
+                    </h3>
+                    {viewingPayment.referenceNumber && (
+                      <span className="text-white/80 text-sm font-mono">#{viewingPayment.referenceNumber}</span>
+                    )}
+                  </div>
+                </div>
+                <button onClick={() => setViewingPayment(null)} className="text-white/80 hover:text-white p-1"><X size={20}/></button>
+              </div>
+              
+              <div className="p-6 overflow-y-auto space-y-6">
+                {/* Status & Amount */}
+                <div className="flex items-center justify-between">
+                  <span className={`px-3 py-1.5 rounded-full text-sm font-medium ${
+                    viewingPayment.status === 'completed' ? 'bg-green-100 text-green-700' :
+                    viewingPayment.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                    viewingPayment.status === 'failed' ? 'bg-red-100 text-red-700' :
+                    'bg-gray-100 text-gray-700'
+                  }`}>
+                    {viewingPayment.status === 'completed' ? 'Tamamlandı' : 
+                     viewingPayment.status === 'pending' ? 'Beklemede' :
+                     viewingPayment.status === 'failed' ? 'Başarısız' : 'İptal'}
+                  </span>
+                  <div className={`text-2xl font-bold ${viewingPayment.paymentType === 'incoming' ? 'text-green-600' : 'text-red-600'}`}>
+                    {viewingPayment.paymentType === 'incoming' ? '+' : '-'}{formatCurrency(viewingPayment.amount, viewingPayment.currency)}
+                  </div>
+                </div>
+                
+                {/* Payment Details Grid */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-slate-50 p-4 rounded-xl">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Calendar size={16} className="text-slate-500" />
+                      <span className="text-xs font-medium text-slate-500">Ödeme Tarihi</span>
+                    </div>
+                    <div className="text-sm font-semibold text-slate-700">
+                      {new Date(viewingPayment.paymentDate).toLocaleDateString('tr-TR')}
+                    </div>
+                  </div>
+                  <div className="bg-slate-50 p-4 rounded-xl">
+                    <div className="flex items-center gap-2 mb-2">
+                      <CreditCard size={16} className="text-slate-500" />
+                      <span className="text-xs font-medium text-slate-500">Ödeme Yöntemi</span>
+                    </div>
+                    <div className="text-sm font-semibold text-slate-700">
+                      {viewingPayment.paymentMethod === 'transfer' ? 'Havale/EFT' :
+                       viewingPayment.paymentMethod === 'cash' ? 'Nakit' :
+                       viewingPayment.paymentMethod === 'card' ? 'Kart' : 'Çek'}
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Invoice Info */}
+                {viewingPayment.invoiceId && (
+                  <div className="bg-blue-50 p-4 rounded-xl">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-blue-100 rounded-lg">
+                        <Receipt size={18} className="text-blue-600" />
+                      </div>
+                      <div>
+                        <div className="text-xs text-blue-600">Bağlı Fatura</div>
+                        <div className="font-semibold text-slate-800">
+                          {invoices.find(inv => inv.id === viewingPayment.invoiceId)?.invoiceNumber || 'Bilinmiyor'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Bank Account Info */}
+                {viewingPayment.bankAccountId && (
+                  <div className="bg-emerald-50 p-4 rounded-xl">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-emerald-100 rounded-lg">
+                        <Wallet size={18} className="text-emerald-600" />
+                      </div>
+                      <div>
+                        <div className="text-xs text-emerald-600">Banka Hesabı</div>
+                        <div className="font-semibold text-slate-800">
+                          {bankAccounts.find(ba => ba.id === viewingPayment.bankAccountId)?.bankName} - {bankAccounts.find(ba => ba.id === viewingPayment.bankAccountId)?.accountName}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Description */}
+                {viewingPayment.description && (
+                  <div className="bg-slate-50 p-4 rounded-xl">
+                    <div className="text-xs font-medium text-slate-500 mb-1">Açıklama</div>
+                    <div className="text-sm text-slate-700">{viewingPayment.description}</div>
+                  </div>
+                )}
+                
+                {/* Document Link */}
+                {viewingPayment.documentUrl && (
+                  <a 
+                    href={viewingPayment.documentUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 p-3 bg-green-100 text-green-700 rounded-xl hover:bg-green-200 transition font-medium"
+                  >
+                    <FileText size={18} />
+                    Dekont/Makbuzu Görüntüle
+                    <ExternalLink size={14} />
+                  </a>
+                )}
+              </div>
+              
+              <div className="flex gap-3 p-5 border-t border-slate-100 shrink-0 bg-slate-50 rounded-b-xl">
+                <button 
+                  onClick={() => setViewingPayment(null)}
+                  className="flex-1 py-2.5 text-slate-600 hover:bg-white border border-transparent hover:border-slate-200 rounded-lg transition text-sm font-medium"
+                >
+                  Kapat
+                </button>
+                <button 
+                  onClick={() => { openPaymentModal(viewingPayment); setViewingPayment(null); }}
+                  className="flex-1 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-medium shadow-sm flex items-center justify-center gap-2"
+                >
+                  <Edit size={16} />
+                  Düzenle
                 </button>
               </div>
             </div>
