@@ -53,8 +53,8 @@ interface ProjectManagementProps {
   aiAnalysis: string;
   isAnalyzing: boolean;
   hasPermission: (perm: PermissionType) => boolean;
-  onRefresh?: () => void;
-  onRefreshTransactions?: () => void;
+  onRefresh?: () => Promise<void> | void;
+  onRefreshTransactions?: () => Promise<void> | void;
 }
 
 export const ProjectManagement: React.FC<ProjectManagementProps> = ({
@@ -291,7 +291,10 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
         await apiService.createContract(contractFormData);
       }
       setIsContractModalOpen(false);
-      if (onRefresh) onRefresh();
+      setEditingContractData(null);
+      setSelectedContractId(null);
+      setSelectedInvoiceId(null);
+      if (onRefresh) await onRefresh();
     } catch (error: any) {
       alert(error.message || 'Kayıt sırasında bir hata oluştu');
     }
@@ -301,7 +304,9 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
     if (confirm('Sözleşmeyi silmek istediğinize emin misiniz?')) {
       try {
         await apiService.deleteContract(id);
-        if (onRefresh) onRefresh();
+        setSelectedContractId(null);
+        setSelectedInvoiceId(null);
+        if (onRefresh) await onRefresh();
       } catch (error: any) {
         alert(error.message || 'Silme sırasında bir hata oluştu');
       }
@@ -387,9 +392,12 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
         await apiService.createInvoice(dataToSave);
       }
       setIsInvoiceModalOpen(false);
+      setEditingInvoiceData(null);
+      setSelectedInvoiceId(null);
       // Reload invoices
       const projectCompany = companies.find(c => c.id === selectedProject?.companyId);
-      if (projectCompany) loadInvoices(projectCompany.id);
+      if (projectCompany) await loadInvoices(projectCompany.id);
+      await loadPayments();
     } catch (error: any) {
       alert(error.message || 'Kayıt sırasında bir hata oluştu');
     }
@@ -399,8 +407,10 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
     if (confirm('Faturayı silmek istediğinize emin misiniz?')) {
       try {
         await apiService.deleteInvoice(id);
+        setSelectedInvoiceId(null);
         const projectCompany = companies.find(c => c.id === selectedProject?.companyId);
-        if (projectCompany) loadInvoices(projectCompany.id);
+        if (projectCompany) await loadInvoices(projectCompany.id);
+        await loadPayments();
       } catch (error: any) {
         alert(error.message || 'Silme sırasında bir hata oluştu');
       }
@@ -454,10 +464,11 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
         await apiService.createPayment(paymentFormData);
       }
       setIsPaymentModalOpen(false);
-      loadPayments();
+      setEditingPaymentData(null);
+      await loadPayments();
       // Also reload invoices to update paid status
       const projectCompany = companies.find(c => c.id === selectedProject?.companyId);
-      if (projectCompany) loadInvoices(projectCompany.id);
+      if (projectCompany) await loadInvoices(projectCompany.id);
     } catch (error: any) {
       alert(error.message || 'Kayıt sırasında bir hata oluştu');
     }
@@ -467,9 +478,9 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
     if (confirm('Ödemeyi silmek istediğinize emin misiniz?')) {
       try {
         await apiService.deletePayment(id);
-        loadPayments();
+        await loadPayments();
         const projectCompany = companies.find(c => c.id === selectedProject?.companyId);
-        if (projectCompany) loadInvoices(projectCompany.id);
+        if (projectCompany) await loadInvoices(projectCompany.id);
       } catch (error: any) {
         alert(error.message || 'Silme sırasında bir hata oluştu');
       }

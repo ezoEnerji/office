@@ -341,7 +341,7 @@ const App = () => {
                 aiAnalysis={aiAnalysis}
                 isAnalyzing={isAnalyzing}
                 hasPermission={hasPermission}
-                onRefresh={() => refreshData('projects')}
+                onRefresh={async () => { await refreshData('projects'); await refreshData('contracts'); }}
                 onRefreshTransactions={() => refreshData('transactions')}
               /> 
             : <Unauthorized />
