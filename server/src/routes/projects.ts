@@ -63,18 +63,38 @@ router.post('/', authenticateToken, async (req, res) => {
 // Update project
 router.put('/:id', authenticateToken, async (req, res) => {
   try {
-    const data = {
-      ...req.body,
+    const data: any = {
+      name: req.body.name,
+      code: req.body.code,
+      companyId: req.body.companyId,
+      customerId: req.body.customerId || null,
+      managerId: req.body.managerId || null,
+      status: req.body.status,
+      priority: req.body.priority,
+      description: req.body.description || null,
+      location: req.body.location || null,
+      agreementCurrency: req.body.agreementCurrency,
+      budget: req.body.budget !== undefined ? Number(req.body.budget) : undefined,
+      progress: req.body.progress !== undefined ? Number(req.body.progress) : undefined,
       tags: req.body.tags ? req.body.tags : undefined,
       startDate: req.body.startDate ? new Date(req.body.startDate) : undefined,
-      endDate: req.body.endDate ? new Date(req.body.endDate) : undefined
+      endDate: req.body.endDate ? new Date(req.body.endDate) : null
     };
+    
+    // undefined değerleri kaldır
+    Object.keys(data).forEach(key => {
+      if (data[key] === undefined) {
+        delete data[key];
+      }
+    });
+    
     const project = await prisma.project.update({
       where: { id: req.params.id },
       data
     });
     res.json(project);
   } catch (error: any) {
+    console.error('Project update hatası:', error);
     res.status(400).json({ error: error.message });
   }
 });

@@ -101,10 +101,17 @@ router.put('/:id', authenticateToken, async (req, res) => {
     }
 
     const data: any = {
-      ...req.body,
       code: req.body.code ? req.body.code.trim() : undefined,
       name: req.body.name ? req.body.name.trim() : undefined,
-      attachments: req.body.attachments && Array.isArray(req.body.attachments) && req.body.attachments.length > 0 
+      type: req.body.type,
+      status: req.body.status,
+      projectId: req.body.projectId,
+      companyId: req.body.companyId,
+      entityId: req.body.entityId,
+      amount: req.body.amount !== undefined ? Number(req.body.amount) : undefined,
+      currency: req.body.currency,
+      isVatIncluded: req.body.isVatIncluded !== undefined ? Boolean(req.body.isVatIncluded) : undefined,
+      attachments: req.body.attachments && Array.isArray(req.body.attachments) 
         ? req.body.attachments.filter((url: string) => url && typeof url === 'string' && !url.startsWith('blob:') && url.trim() !== '') 
         : undefined,
       startDate: req.body.startDate ? new Date(req.body.startDate) : undefined,
