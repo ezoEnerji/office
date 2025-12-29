@@ -31,7 +31,10 @@ import {
   Clock,
   DollarSign,
   ExternalLink,
-  Eye
+  Eye,
+  Upload,
+  Loader2,
+  Link
 } from 'lucide-react';
 import { Project, Transaction, Company, User, ProjectStatus, Currency, ProjectPriority, PermissionType, Entity, TaxItem, Contract, Tax, BankAccount, BankCard } from '../types';
 import { PROJECT_STATUS_LABELS, PROJECT_PRIORITY_LABELS, MARKET_RATES } from '../data/constants';
@@ -135,6 +138,8 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
   // Contract Modal State
   const [isContractModalOpen, setIsContractModalOpen] = useState(false);
   const [editingContractData, setEditingContractData] = useState<Contract | null>(null);
+  const [contractFile, setContractFile] = useState<File | null>(null);
+  const [contractFileUploading, setContractFileUploading] = useState(false);
   const [contractFormData, setContractFormData] = useState({
     code: '',
     name: '',
@@ -150,12 +155,15 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
     paymentTerms: '',
     description: '',
     isVatIncluded: false,
-    attachments: [] as string[]
+    attachments: [] as string[],
+    documentUrl: ''
   });
   
   // Invoice Modal State
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
   const [editingInvoiceData, setEditingInvoiceData] = useState<any | null>(null);
+  const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
+  const [invoiceFileUploading, setInvoiceFileUploading] = useState(false);
   const [invoiceFormData, setInvoiceFormData] = useState({
     invoiceNumber: '',
     invoiceType: 'incoming' as 'incoming' | 'outgoing',
@@ -172,13 +180,16 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
     entityId: '',
     contractId: '',
     description: '',
-    isVatIncluded: false
+    isVatIncluded: false,
+    documentUrl: ''
   });
   const [invoiceSelectedTaxId, setInvoiceSelectedTaxId] = useState<string>('');
   
   // Payment Modal State
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [editingPaymentData, setEditingPaymentData] = useState<any | null>(null);
+  const [paymentFile, setPaymentFile] = useState<File | null>(null);
+  const [paymentFileUploading, setPaymentFileUploading] = useState(false);
   const [paymentFormData, setPaymentFormData] = useState({
     paymentType: 'outgoing' as 'incoming' | 'outgoing', // incoming = gelen ödeme, outgoing = giden ödeme
     paymentDate: new Date().toISOString().split('T')[0],
@@ -190,7 +201,8 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
     bankCardId: '',
     description: '',
     referenceNumber: '',
-    status: 'completed' as 'pending' | 'completed' | 'failed' | 'cancelled'
+    status: 'completed' as 'pending' | 'completed' | 'failed' | 'cancelled',
+    documentUrl: ''
   });
   
   // Load bank accounts and cards when project changes
@@ -243,6 +255,7 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
   
   // Contract Modal Handlers
   const openContractModal = (contract?: Contract) => {
+    setContractFile(null); // Reset file
     if (contract) {
       setEditingContractData(contract);
       setContractFormData({
@@ -260,7 +273,8 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
         paymentTerms: contract.paymentTerms || '',
         description: contract.description || '',
         isVatIncluded: contract.isVatIncluded || false,
-        attachments: contract.attachments || []
+        attachments: contract.attachments || [],
+        documentUrl: (contract as any).documentUrl || ''
       });
     } else {
       setEditingContractData(null);
@@ -283,7 +297,8 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
         paymentTerms: '',
         description: '',
         isVatIncluded: false,
-        attachments: []
+        attachments: [],
+        documentUrl: ''
       });
     }
     setIsContractModalOpen(true);
@@ -295,13 +310,40 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
       return;
     }
     try {
+      let documentUrl = contractFormData.documentUrl;
+      
+      // Dosya seçildiyse önce yükle
+      if (contractFile) {
+        setContractFileUploading(true);
+        try {
+          const uploadResult = await apiService.uploadToGoogleDrive(contractFile, {
+            category: 'contract',
+            projectId: selectedProject?.id,
+            projectCode: selectedProject?.code,
+            projectName: selectedProject?.name,
+            contractId: editingContractData?.id,
+            contractCode: contractFormData.code,
+            contractName: contractFormData.name
+          });
+          documentUrl = uploadResult.webViewLink || uploadResult.downloadUrl;
+        } catch (uploadError: any) {
+          alert('Dosya yüklenirken hata: ' + uploadError.message);
+          setContractFileUploading(false);
+          return;
+        }
+        setContractFileUploading(false);
+      }
+      
+      const dataToSave = { ...contractFormData, documentUrl };
+      
       if (editingContractData) {
-        await apiService.updateContract(editingContractData.id, contractFormData);
+        await apiService.updateContract(editingContractData.id, dataToSave);
       } else {
-        await apiService.createContract(contractFormData);
+        await apiService.createContract(dataToSave);
       }
       setIsContractModalOpen(false);
       setEditingContractData(null);
+      setContractFile(null);
       setSelectedContractId(null);
       setSelectedInvoiceId(null);
       if (onRefresh) await onRefresh();
@@ -325,6 +367,7 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
   
   // Invoice Modal Handlers
   const openInvoiceModal = (invoice?: any) => {
+    setInvoiceFile(null); // Reset file
     if (invoice) {
       setEditingInvoiceData(invoice);
       setInvoiceFormData({
@@ -343,7 +386,8 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
         entityId: invoice.entityId,
         contractId: invoice.contractId || '',
         description: invoice.description || '',
-        isVatIncluded: invoice.isVatIncluded || false
+        isVatIncluded: invoice.isVatIncluded || false,
+        documentUrl: invoice.documentUrl || ''
       });
     } else {
       setEditingInvoiceData(null);
@@ -366,7 +410,8 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
         entityId: selectedContractId ? contracts.find(c => c.id === selectedContractId)?.entityId || '' : '',
         contractId: selectedContractId || '',
         description: '',
-        isVatIncluded: false
+        isVatIncluded: false,
+        documentUrl: ''
       });
     }
     setInvoiceSelectedTaxId('');
@@ -465,6 +510,29 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
       return;
     }
     try {
+      let documentUrl = invoiceFormData.documentUrl;
+      
+      // Dosya seçildiyse önce yükle
+      if (invoiceFile) {
+        setInvoiceFileUploading(true);
+        try {
+          const uploadResult = await apiService.uploadToGoogleDrive(invoiceFile, {
+            category: 'invoice',
+            projectId: selectedProject?.id,
+            projectCode: selectedProject?.code,
+            projectName: selectedProject?.name,
+            invoiceId: editingInvoiceData?.id,
+            invoiceNumber: invoiceFormData.invoiceNumber
+          });
+          documentUrl = uploadResult.webViewLink || uploadResult.downloadUrl;
+        } catch (uploadError: any) {
+          alert('Dosya yüklenirken hata: ' + uploadError.message);
+          setInvoiceFileUploading(false);
+          return;
+        }
+        setInvoiceFileUploading(false);
+      }
+      
       const totals = calculateInvoiceTotals();
       const dataToSave = {
         invoiceNumber: invoiceFormData.invoiceNumber,
@@ -482,7 +550,8 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
         contractId: invoiceFormData.contractId,
         description: invoiceFormData.description,
         isVatIncluded: invoiceFormData.isVatIncluded,
-        taxes: invoiceFormData.taxes.length > 0 ? invoiceFormData.taxes : null
+        taxes: invoiceFormData.taxes.length > 0 ? invoiceFormData.taxes : null,
+        documentUrl
       };
       
       if (editingInvoiceData) {
@@ -493,6 +562,7 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
       setIsInvoiceModalOpen(false);
       setEditingInvoiceData(null);
       setSelectedInvoiceId(null);
+      setInvoiceFile(null);
       // Reload invoices
       const projectCompany = companies.find(c => c.id === selectedProject?.companyId);
       if (projectCompany) await loadInvoices(projectCompany.id);
@@ -525,6 +595,7 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
   };
   
   const openPaymentModal = (payment?: any) => {
+    setPaymentFile(null); // Reset file
     if (payment) {
       setEditingPaymentData(payment);
       setPaymentFormData({
@@ -538,7 +609,8 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
         bankCardId: payment.bankCardId || '',
         description: payment.description || '',
         referenceNumber: payment.referenceNumber || '',
-        status: payment.status
+        status: payment.status,
+        documentUrl: payment.documentUrl || ''
       });
     } else {
       setEditingPaymentData(null);
@@ -554,7 +626,8 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
         bankCardId: '',
         description: '',
         referenceNumber: '',
-        status: 'completed'
+        status: 'completed',
+        documentUrl: ''
       });
     }
     setIsPaymentModalOpen(true);
@@ -566,13 +639,39 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
       return;
     }
     try {
+      let documentUrl = paymentFormData.documentUrl;
+      
+      // Dosya seçildiyse önce yükle
+      if (paymentFile) {
+        setPaymentFileUploading(true);
+        try {
+          const uploadResult = await apiService.uploadToGoogleDrive(paymentFile, {
+            category: 'payment',
+            projectId: selectedProject?.id,
+            projectCode: selectedProject?.code,
+            projectName: selectedProject?.name,
+            paymentId: editingPaymentData?.id,
+            paymentReference: paymentFormData.referenceNumber || `PAY-${Date.now()}`
+          });
+          documentUrl = uploadResult.webViewLink || uploadResult.downloadUrl;
+        } catch (uploadError: any) {
+          alert('Dosya yüklenirken hata: ' + uploadError.message);
+          setPaymentFileUploading(false);
+          return;
+        }
+        setPaymentFileUploading(false);
+      }
+      
+      const dataToSave = { ...paymentFormData, documentUrl };
+      
       if (editingPaymentData) {
-        await apiService.updatePayment(editingPaymentData.id, paymentFormData);
+        await apiService.updatePayment(editingPaymentData.id, dataToSave);
       } else {
-        await apiService.createPayment(paymentFormData);
+        await apiService.createPayment(dataToSave);
       }
       setIsPaymentModalOpen(false);
       setEditingPaymentData(null);
+      setPaymentFile(null);
       await loadPayments();
       // Also reload invoices to update paid status
       const projectCompany = companies.find(c => c.id === selectedProject?.companyId);
@@ -3400,20 +3499,71 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                     placeholder="Sözleşme hakkında notlar..."
                   />
                 </label>
+                
+                {/* Sözleşme PDF Yükleme */}
+                <div className="block">
+                  <span className="text-xs font-medium text-slate-500 block mb-1">Sözleşme PDF</span>
+                  <div className="flex items-center gap-3">
+                    <label className="flex-1 flex items-center justify-center gap-2 p-3 border-2 border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/50 transition">
+                      <Upload size={18} className="text-slate-400" />
+                      <span className="text-sm text-slate-600">
+                        {contractFile ? contractFile.name : 'PDF dosyası seç...'}
+                      </span>
+                      <input 
+                        type="file" 
+                        accept=".pdf"
+                        className="hidden"
+                        onChange={(e) => setContractFile(e.target.files?.[0] || null)}
+                      />
+                    </label>
+                    {contractFormData.documentUrl && (
+                      <a 
+                        href={contractFormData.documentUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 px-3 py-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition text-sm"
+                      >
+                        <Link size={14} />
+                        Görüntüle
+                      </a>
+                    )}
+                  </div>
+                  {contractFile && (
+                    <div className="mt-2 flex items-center gap-2 text-xs text-green-600">
+                      <CheckCircle size={14} />
+                      <span>Dosya seçildi: {(contractFile.size / 1024 / 1024).toFixed(2)} MB</span>
+                      <button 
+                        onClick={() => setContractFile(null)}
+                        className="ml-auto text-red-500 hover:text-red-700"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
               
               <div className="flex gap-3 p-5 border-t border-slate-100 shrink-0 bg-slate-50 rounded-b-xl">
                 <button 
                   onClick={() => setIsContractModalOpen(false)}
                   className="flex-1 py-2.5 text-slate-600 hover:bg-white border border-transparent hover:border-slate-200 rounded-lg transition text-sm font-medium"
+                  disabled={contractFileUploading}
                 >
                   İptal
                 </button>
                 <button 
                   onClick={handleSaveContract}
-                  className="flex-1 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm font-medium shadow-sm"
+                  disabled={contractFileUploading}
+                  className="flex-1 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm font-medium shadow-sm flex items-center justify-center gap-2 disabled:opacity-50"
                 >
-                  {editingContractData ? 'Güncelle' : 'Kaydet'}
+                  {contractFileUploading ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Yükleniyor...
+                    </>
+                  ) : (
+                    editingContractData ? 'Güncelle' : 'Kaydet'
+                  )}
                 </button>
               </div>
             </div>
@@ -3645,20 +3795,71 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                     placeholder="Fatura açıklaması..."
                   />
                 </label>
+                
+                {/* Fatura PDF Yükleme */}
+                <div className="block">
+                  <span className="text-xs font-medium text-slate-500 block mb-1">Fatura PDF</span>
+                  <div className="flex items-center gap-3">
+                    <label className="flex-1 flex items-center justify-center gap-2 p-3 border-2 border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-blue-400 hover:bg-blue-50/50 transition">
+                      <Upload size={18} className="text-slate-400" />
+                      <span className="text-sm text-slate-600">
+                        {invoiceFile ? invoiceFile.name : 'PDF dosyası seç...'}
+                      </span>
+                      <input 
+                        type="file" 
+                        accept=".pdf"
+                        className="hidden"
+                        onChange={(e) => setInvoiceFile(e.target.files?.[0] || null)}
+                      />
+                    </label>
+                    {invoiceFormData.documentUrl && (
+                      <a 
+                        href={invoiceFormData.documentUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 px-3 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition text-sm"
+                      >
+                        <Link size={14} />
+                        Görüntüle
+                      </a>
+                    )}
+                  </div>
+                  {invoiceFile && (
+                    <div className="mt-2 flex items-center gap-2 text-xs text-green-600">
+                      <CheckCircle size={14} />
+                      <span>Dosya seçildi: {(invoiceFile.size / 1024 / 1024).toFixed(2)} MB</span>
+                      <button 
+                        onClick={() => setInvoiceFile(null)}
+                        className="ml-auto text-red-500 hover:text-red-700"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
               
               <div className="flex gap-3 p-5 border-t border-slate-100 shrink-0 bg-slate-50 rounded-b-xl">
                 <button 
                   onClick={() => setIsInvoiceModalOpen(false)}
+                  disabled={invoiceFileUploading}
                   className="flex-1 py-2.5 text-slate-600 hover:bg-white border border-transparent hover:border-slate-200 rounded-lg transition text-sm font-medium"
                 >
                   İptal
                 </button>
                 <button 
                   onClick={handleSaveInvoice}
-                  className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium shadow-sm"
+                  disabled={invoiceFileUploading}
+                  className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium shadow-sm flex items-center justify-center gap-2 disabled:opacity-50"
                 >
-                  {editingInvoiceData ? 'Güncelle' : 'Kaydet'}
+                  {invoiceFileUploading ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Yükleniyor...
+                    </>
+                  ) : (
+                    editingInvoiceData ? 'Güncelle' : 'Kaydet'
+                  )}
                 </button>
               </div>
             </div>
@@ -3824,20 +4025,71 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                     placeholder="Ödeme açıklaması..."
                   />
                 </label>
+                
+                {/* Dekont PDF Yükleme */}
+                <div className="block">
+                  <span className="text-xs font-medium text-slate-500 block mb-1">Dekont / Makbuz PDF</span>
+                  <div className="flex items-center gap-3">
+                    <label className="flex-1 flex items-center justify-center gap-2 p-3 border-2 border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-green-400 hover:bg-green-50/50 transition">
+                      <Upload size={18} className="text-slate-400" />
+                      <span className="text-sm text-slate-600">
+                        {paymentFile ? paymentFile.name : 'PDF dosyası seç...'}
+                      </span>
+                      <input 
+                        type="file" 
+                        accept=".pdf"
+                        className="hidden"
+                        onChange={(e) => setPaymentFile(e.target.files?.[0] || null)}
+                      />
+                    </label>
+                    {paymentFormData.documentUrl && (
+                      <a 
+                        href={paymentFormData.documentUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 px-3 py-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition text-sm"
+                      >
+                        <Link size={14} />
+                        Görüntüle
+                      </a>
+                    )}
+                  </div>
+                  {paymentFile && (
+                    <div className="mt-2 flex items-center gap-2 text-xs text-green-600">
+                      <CheckCircle size={14} />
+                      <span>Dosya seçildi: {(paymentFile.size / 1024 / 1024).toFixed(2)} MB</span>
+                      <button 
+                        onClick={() => setPaymentFile(null)}
+                        className="ml-auto text-red-500 hover:text-red-700"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
               
               <div className="flex gap-3 p-5 border-t border-slate-100 shrink-0 bg-slate-50 rounded-b-xl">
                 <button 
                   onClick={() => setIsPaymentModalOpen(false)}
+                  disabled={paymentFileUploading}
                   className="flex-1 py-2.5 text-slate-600 hover:bg-white border border-transparent hover:border-slate-200 rounded-lg transition text-sm font-medium"
                 >
                   İptal
                 </button>
                 <button 
                   onClick={handleSavePayment}
-                  className="flex-1 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-medium shadow-sm"
+                  disabled={paymentFileUploading}
+                  className="flex-1 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-medium shadow-sm flex items-center justify-center gap-2 disabled:opacity-50"
                 >
-                  {editingPaymentData ? 'Güncelle' : 'Kaydet'}
+                  {paymentFileUploading ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Yükleniyor...
+                    </>
+                  ) : (
+                    editingPaymentData ? 'Güncelle' : 'Kaydet'
+                  )}
                 </button>
               </div>
             </div>

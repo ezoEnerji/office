@@ -148,7 +148,14 @@ router.post('/upload', authenticateToken, upload.single('file'), async (req, res
       return res.status(400).json({ error: 'Dosya yüklenmedi' });
     }
 
-    const { category, projectId, projectCode, projectName, contractId, contractCode, contractName, transactionId, documentName } = req.body;
+    const { 
+      category, 
+      projectId, projectCode, projectName, 
+      contractId, contractCode, contractName, 
+      invoiceId, invoiceNumber,
+      paymentId, paymentReference,
+      transactionId, documentName 
+    } = req.body;
 
     if (!process.env.GOOGLE_DRIVE_CREDENTIALS) {
       return res.status(500).json({ error: 'Google Drive yapılandırması bulunamadı' });
@@ -163,17 +170,49 @@ router.post('/upload', authenticateToken, upload.single('file'), async (req, res
     let targetFolderId = rootFolderId;
 
     // Kategoriye göre klasör yapısı
+    // Klasör yapısı: EzoOffice/Projeler/{ProjeKodu}_{ProjeAdı}/{Kategori}/...
     if (category === 'project' && projectId) {
       // Projeler/ProjeKodu_ProjeAdı/Finansal İşlemler/...
       const projectsFolderId = await getOrCreateSubFolder(drive, rootFolderId, 'Projeler');
-      const projectFolderName = `${projectCode || 'PROJ-' + projectId}_${(projectName || 'Proje').replace(/[^a-zA-Z0-9]/g, '_')}`;
+      const projectFolderName = `${projectCode || 'PROJ-' + projectId}_${(projectName || 'Proje').replace(/[^a-zA-Z0-9ğüşıöçĞÜŞİÖÇ]/g, '_')}`;
       const projectFolderId = await getOrCreateSubFolder(drive, projectsFolderId, projectFolderName);
       targetFolderId = await getOrCreateSubFolder(drive, projectFolderId, 'Finansal İşlemler');
-    } else if (category === 'contract' && contractId) {
-      // Sözleşmeler/SözleşmeKodu_SözleşmeAdı/...
-      const contractsFolderId = await getOrCreateSubFolder(drive, rootFolderId, 'Sözleşmeler');
-      const contractFolderName = `${contractCode || 'CNT-' + contractId}_${(contractName || 'Sözleşme').replace(/[^a-zA-Z0-9]/g, '_')}`;
-      targetFolderId = await getOrCreateSubFolder(drive, contractsFolderId, contractFolderName);
+    } else if (category === 'contract') {
+      // Proje varsa: Projeler/ProjeKodu_ProjeAdı/Sözleşmeler/...
+      // Proje yoksa: Sözleşmeler/SözleşmeKodu/...
+      if (projectId && projectCode) {
+        const projectsFolderId = await getOrCreateSubFolder(drive, rootFolderId, 'Projeler');
+        const projectFolderName = `${projectCode}_${(projectName || 'Proje').replace(/[^a-zA-Z0-9ğüşıöçĞÜŞİÖÇ]/g, '_')}`;
+        const projectFolderId = await getOrCreateSubFolder(drive, projectsFolderId, projectFolderName);
+        targetFolderId = await getOrCreateSubFolder(drive, projectFolderId, 'Sözleşmeler');
+      } else {
+        const contractsFolderId = await getOrCreateSubFolder(drive, rootFolderId, 'Sözleşmeler');
+        targetFolderId = contractsFolderId;
+      }
+    } else if (category === 'invoice') {
+      // Proje varsa: Projeler/ProjeKodu_ProjeAdı/Faturalar/...
+      // Proje yoksa: Faturalar/...
+      if (projectId && projectCode) {
+        const projectsFolderId = await getOrCreateSubFolder(drive, rootFolderId, 'Projeler');
+        const projectFolderName = `${projectCode}_${(projectName || 'Proje').replace(/[^a-zA-Z0-9ğüşıöçĞÜŞİÖÇ]/g, '_')}`;
+        const projectFolderId = await getOrCreateSubFolder(drive, projectsFolderId, projectFolderName);
+        targetFolderId = await getOrCreateSubFolder(drive, projectFolderId, 'Faturalar');
+      } else {
+        targetFolderId = await getOrCreateSubFolder(drive, rootFolderId, 'Faturalar');
+      }
+    } else if (category === 'payment') {
+      // Proje varsa: Projeler/ProjeKodu_ProjeAdı/Ödemeler/Dekontlar/...
+      // Proje yoksa: Ödemeler/Dekontlar/...
+      if (projectId && projectCode) {
+        const projectsFolderId = await getOrCreateSubFolder(drive, rootFolderId, 'Projeler');
+        const projectFolderName = `${projectCode}_${(projectName || 'Proje').replace(/[^a-zA-Z0-9ğüşıöçĞÜŞİÖÇ]/g, '_')}`;
+        const projectFolderId = await getOrCreateSubFolder(drive, projectsFolderId, projectFolderName);
+        const paymentsFolderId = await getOrCreateSubFolder(drive, projectFolderId, 'Ödemeler');
+        targetFolderId = await getOrCreateSubFolder(drive, paymentsFolderId, 'Dekontlar');
+      } else {
+        const paymentsFolderId = await getOrCreateSubFolder(drive, rootFolderId, 'Ödemeler');
+        targetFolderId = await getOrCreateSubFolder(drive, paymentsFolderId, 'Dekontlar');
+      }
     } else if (category === 'document') {
       // Dökümanlar/Kategori/...
       const documentsFolderId = await getOrCreateSubFolder(drive, rootFolderId, 'Dökümanlar');

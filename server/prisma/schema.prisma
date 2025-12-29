@@ -129,6 +129,7 @@ model Contract {
   paymentTerms String?
   description String?
   attachments Json     @default("[]") // PostgreSQL JSON desteği
+  documentUrl String?  // Sözleşme PDF'i
   isVatIncluded Boolean @default(false) // KDV dahil mi? (Varsayılan: KDV hariç)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

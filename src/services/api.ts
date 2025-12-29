@@ -277,13 +277,17 @@ class ApiService {
   async uploadToGoogleDrive(
     file: File,
     options: {
-      category: 'project' | 'contract' | 'document' | 'general';
+      category: 'project' | 'contract' | 'invoice' | 'payment' | 'document' | 'general';
       projectId?: string;
       projectCode?: string;
       projectName?: string;
       contractId?: string;
       contractCode?: string;
       contractName?: string;
+      invoiceId?: string;
+      invoiceNumber?: string;
+      paymentId?: string;
+      paymentReference?: string;
       transactionId?: string;
       documentName?: string;
     }
@@ -298,6 +302,10 @@ class ApiService {
     if (options.contractId) formData.append('contractId', options.contractId);
     if (options.contractCode) formData.append('contractCode', options.contractCode);
     if (options.contractName) formData.append('contractName', options.contractName);
+    if (options.invoiceId) formData.append('invoiceId', options.invoiceId);
+    if (options.invoiceNumber) formData.append('invoiceNumber', options.invoiceNumber);
+    if (options.paymentId) formData.append('paymentId', options.paymentId);
+    if (options.paymentReference) formData.append('paymentReference', options.paymentReference);
     if (options.transactionId) formData.append('transactionId', options.transactionId);
     if (options.documentName) formData.append('documentName', options.documentName);
 
