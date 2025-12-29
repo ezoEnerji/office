@@ -147,7 +147,8 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
     currency: 'TRY' as Currency,
     paymentTerms: '',
     description: '',
-    isVatIncluded: false
+    isVatIncluded: false,
+    attachments: [] as string[]
   });
   
   // Invoice Modal State
@@ -254,13 +255,17 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
         currency: contract.currency,
         paymentTerms: contract.paymentTerms || '',
         description: contract.description || '',
-        isVatIncluded: contract.isVatIncluded || false
+        isVatIncluded: contract.isVatIncluded || false,
+        attachments: contract.attachments || []
       });
     } else {
       setEditingContractData(null);
-      const projectContracts = contracts.filter(c => c.projectId === selectedProject?.id);
+      // Benzersiz kod oluştur: Proje kodu + toplam sözleşme sayısı + timestamp
+      const allContractsCount = contracts.length;
+      const timestamp = Date.now().toString(36).slice(-4).toUpperCase();
+      const projectCode = selectedProject?.code?.replace(/[^A-Z0-9]/gi, '').slice(0, 8) || 'CNT';
       setContractFormData({
-        code: `CNT-${new Date().getFullYear()}-${String(projectContracts.length + 1).padStart(3, '0')}`,
+        code: `${projectCode}-${new Date().getFullYear()}-${String(allContractsCount + 1).padStart(3, '0')}-${timestamp}`,
         name: '',
         type: 'subcontractor_agreement',
         status: 'draft',
@@ -273,7 +278,8 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
         currency: selectedProject?.agreementCurrency || 'TRY',
         paymentTerms: '',
         description: '',
-        isVatIncluded: false
+        isVatIncluded: false,
+        attachments: []
       });
     }
     setIsContractModalOpen(true);
