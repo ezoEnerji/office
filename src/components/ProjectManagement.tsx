@@ -18,6 +18,8 @@ import {
   MapPin,
   ArrowUp,
   ArrowDown,
+  ArrowDownLeft,
+  ArrowUpRight,
   ChevronDown,
   ChevronRight,
   Layers,
@@ -178,6 +180,7 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [editingPaymentData, setEditingPaymentData] = useState<any | null>(null);
   const [paymentFormData, setPaymentFormData] = useState({
+    paymentType: 'outgoing' as 'incoming' | 'outgoing', // incoming = gelen ödeme, outgoing = giden ödeme
     paymentDate: new Date().toISOString().split('T')[0],
     amount: 0,
     currency: 'TRY' as Currency,
@@ -514,10 +517,18 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
   };
   
   // Payment Modal Handlers
+  // Fatura türüne göre ödeme türünü belirle:
+  // - Gelen Fatura (incoming) = Bize kesilen fatura → Giden Ödeme (outgoing) - biz ödüyoruz
+  // - Giden Fatura (outgoing) = Bizim kestiğimiz fatura → Gelen Ödeme (incoming) - bize ödeniyor
+  const getPaymentTypeFromInvoice = (invoice: any): 'incoming' | 'outgoing' => {
+    return invoice?.invoiceType === 'outgoing' ? 'incoming' : 'outgoing';
+  };
+  
   const openPaymentModal = (payment?: any) => {
     if (payment) {
       setEditingPaymentData(payment);
       setPaymentFormData({
+        paymentType: payment.paymentType || 'outgoing',
         paymentDate: payment.paymentDate ? new Date(payment.paymentDate).toISOString().split('T')[0] : '',
         amount: payment.amount,
         currency: payment.currency,
@@ -533,6 +544,7 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
       setEditingPaymentData(null);
       const selectedInvoice = selectedInvoiceId ? invoices.find(inv => inv.id === selectedInvoiceId) : null;
       setPaymentFormData({
+        paymentType: getPaymentTypeFromInvoice(selectedInvoice),
         paymentDate: new Date().toISOString().split('T')[0],
         amount: selectedInvoice ? selectedInvoice.totalAmount : 0,
         currency: selectedInvoice?.currency || selectedProject?.agreementCurrency || 'TRY',
@@ -2754,12 +2766,26 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                                          >
                                             <div className="flex items-start justify-between gap-3">
                                                <div className="flex items-start gap-3 flex-1 min-w-0">
-                                                  <div className={`p-2 rounded-lg shrink-0 ${payment.status === 'completed' ? 'bg-green-50 text-green-600' : 'bg-yellow-50 text-yellow-600'}`}>
-                                                     <CreditCard size={16} />
+                                                  <div className={`p-2 rounded-lg shrink-0 ${
+                                                     payment.paymentType === 'incoming' 
+                                                        ? 'bg-green-50 text-green-600' 
+                                                        : 'bg-red-50 text-red-600'
+                                                  }`}>
+                                                     {payment.paymentType === 'incoming' 
+                                                        ? <ArrowDownLeft size={16} />
+                                                        : <ArrowUpRight size={16} />
+                                                     }
                                                   </div>
                                                   <div className="flex-1 min-w-0">
                                                      <div className="flex items-center gap-2 mb-1">
                                                         <span className="text-sm font-medium text-slate-800">{methodLabels[payment.paymentMethod] || payment.paymentMethod}</span>
+                                                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                                                           payment.paymentType === 'incoming' 
+                                                              ? 'bg-green-100 text-green-700' 
+                                                              : 'bg-red-100 text-red-700'
+                                                        }`}>
+                                                           {payment.paymentType === 'incoming' ? 'Gelen' : 'Giden'}
+                                                        </span>
                                                         {payment.referenceNumber && (
                                                            <span className="font-mono text-[10px] text-slate-400">#{payment.referenceNumber}</span>
                                                         )}
@@ -2794,7 +2820,9 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                                                   </div>
                                                </div>
                                                <div className="text-right shrink-0">
-                                                  <div className="font-mono font-bold text-green-600 text-sm">+{formatCurrency(payment.amount, payment.currency)}</div>
+                                                  <div className={`font-mono font-bold text-sm ${payment.paymentType === 'incoming' ? 'text-green-600' : 'text-red-600'}`}>
+                                                     {payment.paymentType === 'incoming' ? '+' : '-'}{formatCurrency(payment.amount, payment.currency)}
+                                                  </div>
                                                   <span className={`inline-block mt-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${statusColors[payment.status]}`}>
                                                      {statusLabels[payment.status]}
                                                   </span>
@@ -3649,6 +3677,27 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
               </div>
               
               <div className="p-5 overflow-y-auto space-y-4">
+                {/* Ödeme Türü Göstergesi */}
+                <div className={`p-3 rounded-lg flex items-center gap-2 ${
+                  paymentFormData.paymentType === 'incoming' 
+                    ? 'bg-green-50 border border-green-200' 
+                    : 'bg-red-50 border border-red-200'
+                }`}>
+                  <span className={`text-xl ${paymentFormData.paymentType === 'incoming' ? 'text-green-600' : 'text-red-600'}`}>
+                    {paymentFormData.paymentType === 'incoming' ? '↓' : '↑'}
+                  </span>
+                  <div>
+                    <div className={`font-semibold ${paymentFormData.paymentType === 'incoming' ? 'text-green-700' : 'text-red-700'}`}>
+                      {paymentFormData.paymentType === 'incoming' ? 'Gelen Ödeme' : 'Giden Ödeme'}
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      {paymentFormData.paymentType === 'incoming' 
+                        ? 'Bize ödeme yapılıyor (Giden fatura için)' 
+                        : 'Biz ödeme yapıyoruz (Gelen fatura için)'}
+                    </div>
+                  </div>
+                </div>
+                
                 <label className="block">
                   <span className="text-xs font-medium text-slate-500 block mb-1">Fatura *</span>
                   <select 
@@ -3660,7 +3709,9 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                         ...paymentFormData, 
                         invoiceId: e.target.value,
                         amount: invoice?.totalAmount || 0,
-                        currency: invoice?.currency || 'TRY'
+                        currency: invoice?.currency || 'TRY',
+                        // Fatura türüne göre ödeme türünü otomatik ayarla
+                        paymentType: getPaymentTypeFromInvoice(invoice)
                       });
                     }}
                   >
@@ -3670,7 +3721,7 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                       .filter(inv => selectedContractId === null || inv.contractId === selectedContractId)
                       .map(inv => (
                         <option key={inv.id} value={inv.id}>
-                          {inv.invoiceNumber} - {formatCurrency(inv.totalAmount, inv.currency)} ({inv.status === 'paid' ? 'Ödendi' : 'Bekliyor'})
+                          {inv.invoiceNumber} - {formatCurrency(inv.totalAmount, inv.currency)} ({inv.invoiceType === 'incoming' ? 'Gelen' : 'Giden'} - {inv.status === 'paid' ? 'Ödendi' : 'Bekliyor'})
                         </option>
                       ))
                     }

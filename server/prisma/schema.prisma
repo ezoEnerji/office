@@ -326,6 +326,7 @@ model Invoice {
 
 model Payment {
   id            String   @id @default(cuid())
+  paymentType   String   @default("outgoing") // "incoming" (gelen ödeme - bize ödeniyor) | "outgoing" (giden ödeme - biz ödüyoruz)
   paymentDate   DateTime // Ödeme tarihi
   amount        Float    // Ödeme tutarı
   currency      String   @default("TRY") // Currency enum
@@ -347,5 +348,6 @@ model Payment {
   @@index([invoiceId])
   @@index([paymentDate])
   @@index([status])
+  @@index([paymentType])
 }
 

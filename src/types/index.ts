@@ -203,6 +203,7 @@ export type InvoiceType = 'incoming' | 'outgoing';
 export type InvoiceStatus = 'draft' | 'issued' | 'paid' | 'cancelled' | 'overdue';
 export type PaymentMethod = 'cash' | 'transfer' | 'card' | 'check';
 export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'cancelled';
+export type PaymentType = 'incoming' | 'outgoing'; // incoming = gelen ödeme (bize ödeniyor), outgoing = giden ödeme (biz ödüyoruz)
 
 export interface Invoice {
   id: string;
@@ -235,6 +236,7 @@ export interface Invoice {
 
 export interface Payment {
   id: string;
+  paymentType: PaymentType; // incoming = gelen ödeme, outgoing = giden ödeme
   paymentDate: string;
   amount: number;
   currency: Currency;

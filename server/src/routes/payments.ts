@@ -67,13 +67,24 @@ router.get('/:id', authenticateToken, async (req, res) => {
 // Create payment
 router.post('/', authenticateToken, async (req, res) => {
   try {
+    const {
+      paymentType, paymentDate, amount, currency, paymentMethod,
+      invoiceId, bankAccountId, bankCardId, description, referenceNumber, status, documentUrl
+    } = req.body;
+    
     const data: any = {
-      ...req.body,
-      paymentDate: new Date(req.body.paymentDate),
-      invoiceId: req.body.invoiceId && req.body.invoiceId.trim() !== '' ? req.body.invoiceId : null,
-      bankAccountId: req.body.bankAccountId && req.body.bankAccountId.trim() !== '' ? req.body.bankAccountId : null,
-      bankCardId: req.body.bankCardId && req.body.bankCardId.trim() !== '' ? req.body.bankCardId : null,
-      documentUrl: req.body.documentUrl && req.body.documentUrl.trim() !== '' ? req.body.documentUrl : null
+      paymentType: paymentType || 'outgoing', // incoming = gelen ödeme, outgoing = giden ödeme
+      paymentDate: new Date(paymentDate),
+      amount: amount ? Number(amount) : 0,
+      currency: currency || 'TRY',
+      paymentMethod: paymentMethod || 'transfer',
+      invoiceId: invoiceId && invoiceId.trim() !== '' ? invoiceId : null,
+      bankAccountId: bankAccountId && bankAccountId.trim() !== '' ? bankAccountId : null,
+      bankCardId: bankCardId && bankCardId.trim() !== '' ? bankCardId : null,
+      description: description && description.trim() !== '' ? description.trim() : null,
+      referenceNumber: referenceNumber && referenceNumber.trim() !== '' ? referenceNumber.trim() : null,
+      status: status || 'completed',
+      documentUrl: documentUrl && documentUrl.trim() !== '' ? documentUrl : null
     };
     
     const payment = await prisma.payment.create({ data });
@@ -114,13 +125,25 @@ router.post('/', authenticateToken, async (req, res) => {
 // Update payment
 router.put('/:id', authenticateToken, async (req, res) => {
   try {
+    const {
+      id, // exclude from update data
+      paymentType, paymentDate, amount, currency, paymentMethod,
+      invoiceId, bankAccountId, bankCardId, description, referenceNumber, status, documentUrl
+    } = req.body;
+    
     const data: any = {
-      ...req.body,
-      paymentDate: req.body.paymentDate ? new Date(req.body.paymentDate) : undefined,
-      invoiceId: req.body.invoiceId && req.body.invoiceId.trim() !== '' ? req.body.invoiceId : null,
-      bankAccountId: req.body.bankAccountId && req.body.bankAccountId.trim() !== '' ? req.body.bankAccountId : null,
-      bankCardId: req.body.bankCardId && req.body.bankCardId.trim() !== '' ? req.body.bankCardId : null,
-      documentUrl: req.body.documentUrl && req.body.documentUrl.trim() !== '' ? req.body.documentUrl : null
+      paymentType,
+      paymentDate: paymentDate ? new Date(paymentDate) : undefined,
+      amount: amount !== undefined ? Number(amount) : undefined,
+      currency,
+      paymentMethod,
+      invoiceId: invoiceId && invoiceId.trim() !== '' ? invoiceId : null,
+      bankAccountId: bankAccountId && bankAccountId.trim() !== '' ? bankAccountId : null,
+      bankCardId: bankCardId && bankCardId.trim() !== '' ? bankCardId : null,
+      description: description !== undefined ? (description.trim() !== '' ? description.trim() : null) : undefined,
+      referenceNumber: referenceNumber !== undefined ? (referenceNumber.trim() !== '' ? referenceNumber.trim() : null) : undefined,
+      status,
+      documentUrl: documentUrl !== undefined ? (documentUrl.trim() !== '' ? documentUrl : null) : undefined
     };
     
     // undefined değerleri kaldır
