@@ -122,7 +122,7 @@ router.post('/', authenticateToken, async (req, res) => {
       invoiceId, bankAccountId, bankCardId, description, referenceNumber, status, documentUrl
     } = req.body;
     
-    const userId = (req as any).user?.id;
+    const userId = (req as any).user?.userId || (req as any).user?.id;
     
     // Fatura bilgilerini al (projectId ve entityId için)
     let invoice: any = null;
@@ -304,7 +304,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
       });
     }
     
-    const userId = (req as any).user?.id;
+    const userId = (req as any).user?.userId || (req as any).user?.id;
     const finalPaymentType = paymentType || existingPayment?.paymentType || 'outgoing';
     const transactionType = finalPaymentType === 'incoming' ? 'income' : 'expense';
     
