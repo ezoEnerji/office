@@ -633,17 +633,31 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
 
                     {/* Sağ Kolon: Detaylar ve Finans */}
                     <div className="space-y-4">
-                       <div>
-                          <label className="block text-xs font-semibold text-slate-500 mb-1">Öncelik Seviyesi</label>
-                          <select 
-                            className="w-full p-2.5 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                            value={projectFormData.priority}
-                            onChange={e => setProjectFormData({...projectFormData, priority: e.target.value as ProjectPriority})}
-                          >
-                             {(Object.keys(PROJECT_PRIORITY_LABELS) as ProjectPriority[]).map(p => (
-                               <option key={p} value={p}>{PROJECT_PRIORITY_LABELS[p].label}</option>
-                             ))}
-                          </select>
+                       <div className="grid grid-cols-2 gap-4">
+                          <div>
+                             <label className="block text-xs font-semibold text-slate-500 mb-1">Öncelik Seviyesi</label>
+                             <select 
+                               className="w-full p-2.5 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                               value={projectFormData.priority}
+                               onChange={e => setProjectFormData({...projectFormData, priority: e.target.value as ProjectPriority})}
+                             >
+                                {(Object.keys(PROJECT_PRIORITY_LABELS) as ProjectPriority[]).map(p => (
+                                  <option key={p} value={p}>{PROJECT_PRIORITY_LABELS[p].label}</option>
+                                ))}
+                             </select>
+                          </div>
+                          <div>
+                             <label className="block text-xs font-semibold text-slate-500 mb-1">Proje Durumu</label>
+                             <select 
+                               className="w-full p-2.5 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                               value={projectFormData.status}
+                               onChange={e => setProjectFormData({...projectFormData, status: e.target.value as ProjectStatus})}
+                             >
+                                {(Object.keys(PROJECT_STATUS_LABELS) as ProjectStatus[]).map(s => (
+                                  <option key={s} value={s}>{PROJECT_STATUS_LABELS[s].label}</option>
+                                ))}
+                             </select>
+                          </div>
                        </div>
 
                        <div>

@@ -491,6 +491,19 @@ export const ContractManagement: React.FC<ContractManagementProps> = ({
                   </select>
                 </label>
                 <label className="block">
+                  <span className="text-xs font-semibold text-slate-500 block mb-1">Şirket *</span>
+                  <select 
+                    className="w-full p-2 border rounded-lg bg-white"
+                    value={formData.companyId}
+                    onChange={e => setFormData({...formData, companyId: e.target.value})}
+                  >
+                    {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </label>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <label className="block">
                   <span className="text-xs font-semibold text-slate-500 block mb-1">Taraf (Cari) *</span>
                   <select 
                     className="w-full p-2 border rounded-lg bg-white"
