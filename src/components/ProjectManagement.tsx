@@ -4173,29 +4173,58 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                   </div>
                 </div>
                 
-                {/* Date & Amount Grid */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-indigo-50 p-4 rounded-xl">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Calendar size={16} className="text-indigo-600" />
-                      <span className="text-xs font-medium text-indigo-600">Tarih Aralığı</span>
-                    </div>
-                    <div className="text-sm text-slate-700">
-                      {new Date(viewingContract.startDate).toLocaleDateString('tr-TR')} - {new Date(viewingContract.endDate).toLocaleDateString('tr-TR')}
-                    </div>
+                {/* Date Info */}
+                <div className="bg-indigo-50 p-4 rounded-xl">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Calendar size={16} className="text-indigo-600" />
+                    <span className="text-xs font-medium text-indigo-600">Tarih Aralığı</span>
                   </div>
-                  <div className="bg-green-50 p-4 rounded-xl">
-                    <div className="flex items-center gap-2 mb-2">
-                      <DollarSign size={16} className="text-green-600" />
-                      <span className="text-xs font-medium text-green-600">
-                        Sözleşme Bedeli {viewingContract.isVatIncluded ? '(KDV Dahil)' : '(KDV Hariç)'}
-                      </span>
-                    </div>
-                    <div className="text-xl font-bold text-green-700">
-                      {formatCurrency(viewingContract.amount, viewingContract.currency)}
-                    </div>
+                  <div className="text-sm text-slate-700">
+                    {new Date(viewingContract.startDate).toLocaleDateString('tr-TR')} - {new Date(viewingContract.endDate).toLocaleDateString('tr-TR')}
                   </div>
                 </div>
+                
+                {/* Amount Summary */}
+                {(() => {
+                  const contractInvoices = invoices.filter(inv => inv.contractId === viewingContract.id);
+                  const totalInvoiced = contractInvoices.reduce((sum, inv) => sum + (inv.totalAmount || 0), 0);
+                  const remainingAmount = viewingContract.amount - totalInvoiced;
+                  const progressPercent = viewingContract.amount > 0 ? Math.min((totalInvoiced / viewingContract.amount) * 100, 100) : 0;
+                  
+                  return (
+                    <div className="bg-gradient-to-br from-slate-50 to-slate-100 p-5 rounded-xl space-y-4">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-slate-600">
+                          Sözleşme Bedeli {viewingContract.isVatIncluded ? '(KDV Dahil)' : '(KDV Hariç)'}
+                        </span>
+                        <span className="text-lg font-bold text-slate-800">{formatCurrency(viewingContract.amount, viewingContract.currency)}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-blue-600">Faturalanan</span>
+                        <span className="font-mono font-semibold text-blue-600">{formatCurrency(totalInvoiced, viewingContract.currency)}</span>
+                      </div>
+                      <div className="w-full bg-slate-200 rounded-full h-2.5">
+                        <div 
+                          className={`h-2.5 rounded-full transition-all ${progressPercent >= 100 ? 'bg-green-500' : 'bg-blue-500'}`}
+                          style={{ width: `${progressPercent}%` }}
+                        />
+                      </div>
+                      <div className="flex justify-between items-center pt-2 border-t border-slate-200">
+                        <span className={`font-semibold ${remainingAmount > 0 ? 'text-amber-600' : 'text-green-600'}`}>
+                          {remainingAmount > 0 ? 'Kalan Miktar' : 'Tamamlandı'}
+                        </span>
+                        <span className={`text-xl font-bold ${remainingAmount > 0 ? 'text-amber-600' : 'text-green-600'}`}>
+                          {formatCurrency(Math.max(remainingAmount, 0), viewingContract.currency)}
+                        </span>
+                      </div>
+                      {contractInvoices.length > 0 && (
+                        <div className="text-xs text-slate-500 text-right">
+                          {contractInvoices.length} adet fatura kesildi
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
                 
                 {/* Payment Terms */}
                 {viewingContract.paymentTerms && (
@@ -4330,26 +4359,62 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                 </div>
                 
                 {/* Amount Details */}
-                <div className="bg-gradient-to-br from-slate-50 to-slate-100 p-5 rounded-xl space-y-3">
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-slate-600">Tutar {viewingInvoice.isVatIncluded ? '(Vergiler Dahil)' : '(Vergiler Hariç)'}</span>
-                    <span className="font-mono font-semibold">{formatCurrency(viewingInvoice.amount, viewingInvoice.currency)}</span>
-                  </div>
-                  {viewingInvoice.taxes && Array.isArray(viewingInvoice.taxes) && viewingInvoice.taxes.length > 0 && (
-                    <div className="border-t border-slate-200 pt-3 space-y-2">
-                      {viewingInvoice.taxes.map((tax: any, idx: number) => (
-                        <div key={idx} className="flex justify-between items-center text-sm">
-                          <span className="text-slate-500">{tax.name} ({tax.calculationType === 'percentage' ? `%${tax.rate}` : 'Sabit'})</span>
-                          <span className="font-mono text-slate-600">{formatCurrency(tax.amount, viewingInvoice.currency)}</span>
+                {(() => {
+                  const invoicePayments = payments.filter(p => p.invoiceId === viewingInvoice.id && p.status === 'completed');
+                  const totalPaid = invoicePayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+                  const remainingAmount = viewingInvoice.totalAmount - totalPaid;
+                  const progressPercent = viewingInvoice.totalAmount > 0 ? Math.min((totalPaid / viewingInvoice.totalAmount) * 100, 100) : 0;
+                  
+                  return (
+                    <div className="bg-gradient-to-br from-slate-50 to-slate-100 p-5 rounded-xl space-y-3">
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-slate-600">Tutar {viewingInvoice.isVatIncluded ? '(Vergiler Dahil)' : '(Vergiler Hariç)'}</span>
+                        <span className="font-mono font-semibold">{formatCurrency(viewingInvoice.amount, viewingInvoice.currency)}</span>
+                      </div>
+                      {viewingInvoice.taxes && Array.isArray(viewingInvoice.taxes) && viewingInvoice.taxes.length > 0 && (
+                        <div className="border-t border-slate-200 pt-3 space-y-2">
+                          {viewingInvoice.taxes.map((tax: any, idx: number) => (
+                            <div key={idx} className="flex justify-between items-center text-sm">
+                              <span className="text-slate-500">{tax.name} ({tax.calculationType === 'percentage' ? `%${tax.rate}` : 'Sabit'})</span>
+                              <span className="font-mono text-slate-600">{formatCurrency(tax.amount, viewingInvoice.currency)}</span>
+                            </div>
+                          ))}
                         </div>
-                      ))}
+                      )}
+                      <div className="border-t-2 border-slate-300 pt-3 flex justify-between items-center">
+                        <span className="font-semibold text-slate-700">Genel Toplam</span>
+                        <span className="text-xl font-bold text-slate-800">{formatCurrency(viewingInvoice.totalAmount, viewingInvoice.currency)}</span>
+                      </div>
+                      
+                      {/* Payment Progress */}
+                      <div className="border-t border-slate-200 pt-4 mt-2 space-y-3">
+                        <div className="flex justify-between items-center text-sm">
+                          <span className="text-green-600 font-medium">Ödenen</span>
+                          <span className="font-mono font-semibold text-green-600">{formatCurrency(totalPaid, viewingInvoice.currency)}</span>
+                        </div>
+                        <div className="w-full bg-slate-200 rounded-full h-2.5">
+                          <div 
+                            className={`h-2.5 rounded-full transition-all ${progressPercent >= 100 ? 'bg-green-500' : 'bg-blue-500'}`}
+                            style={{ width: `${progressPercent}%` }}
+                          />
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className={`font-semibold ${remainingAmount > 0 ? 'text-amber-600' : 'text-green-600'}`}>
+                            {remainingAmount > 0 ? 'Kalan Miktar' : 'Tamamen Ödendi'}
+                          </span>
+                          <span className={`text-lg font-bold ${remainingAmount > 0 ? 'text-amber-600' : 'text-green-600'}`}>
+                            {formatCurrency(Math.max(remainingAmount, 0), viewingInvoice.currency)}
+                          </span>
+                        </div>
+                        {invoicePayments.length > 0 && (
+                          <div className="text-xs text-slate-500 text-right">
+                            {invoicePayments.length} adet ödeme yapıldı
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  )}
-                  <div className="border-t-2 border-slate-300 pt-3 flex justify-between items-center">
-                    <span className="font-semibold text-slate-700">Genel Toplam</span>
-                    <span className="text-xl font-bold text-slate-800">{formatCurrency(viewingInvoice.totalAmount, viewingInvoice.currency)}</span>
-                  </div>
-                </div>
+                  );
+                })()}
                 
                 {/* Description */}
                 {viewingInvoice.description && (
@@ -4460,22 +4525,46 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                   </div>
                 </div>
                 
-                {/* Invoice Info */}
-                {viewingPayment.invoiceId && (
-                  <div className="bg-blue-50 p-4 rounded-xl">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-blue-100 rounded-lg">
-                        <Receipt size={18} className="text-blue-600" />
-                      </div>
-                      <div>
-                        <div className="text-xs text-blue-600">Bağlı Fatura</div>
-                        <div className="font-semibold text-slate-800">
-                          {invoices.find(inv => inv.id === viewingPayment.invoiceId)?.invoiceNumber || 'Bilinmiyor'}
+                {/* Invoice Info with Remaining Amount */}
+                {viewingPayment.invoiceId && (() => {
+                  const linkedInvoice = invoices.find(inv => inv.id === viewingPayment.invoiceId);
+                  if (!linkedInvoice) return null;
+                  
+                  const invoicePayments = payments.filter(p => p.invoiceId === linkedInvoice.id && p.status === 'completed');
+                  const totalPaid = invoicePayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+                  const remainingAmount = linkedInvoice.totalAmount - totalPaid;
+                  const progressPercent = linkedInvoice.totalAmount > 0 ? Math.min((totalPaid / linkedInvoice.totalAmount) * 100, 100) : 0;
+                  
+                  return (
+                    <div className="bg-blue-50 p-4 rounded-xl space-y-3">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-blue-100 rounded-lg">
+                          <Receipt size={18} className="text-blue-600" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="text-xs text-blue-600">Bağlı Fatura</div>
+                          <div className="font-semibold text-slate-800">{linkedInvoice.invoiceNumber}</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-xs text-slate-500">Fatura Toplamı</div>
+                          <div className="font-mono font-semibold text-slate-700">{formatCurrency(linkedInvoice.totalAmount, linkedInvoice.currency)}</div>
                         </div>
                       </div>
+                      <div className="w-full bg-blue-200 rounded-full h-2">
+                        <div 
+                          className={`h-2 rounded-full transition-all ${progressPercent >= 100 ? 'bg-green-500' : 'bg-blue-500'}`}
+                          style={{ width: `${progressPercent}%` }}
+                        />
+                      </div>
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-slate-600">Toplam Ödenen: <strong className="text-green-600">{formatCurrency(totalPaid, linkedInvoice.currency)}</strong></span>
+                        <span className={`font-semibold ${remainingAmount > 0 ? 'text-amber-600' : 'text-green-600'}`}>
+                          {remainingAmount > 0 ? `Kalan: ${formatCurrency(remainingAmount, linkedInvoice.currency)}` : '✓ Tamamen Ödendi'}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
                 
                 {/* Bank Account Info */}
                 {viewingPayment.bankAccountId && (
