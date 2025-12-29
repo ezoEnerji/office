@@ -429,12 +429,46 @@ export const InvoiceManagement: React.FC<InvoiceManagementProps> = ({
     }
   };
 
-  // Calculate invoice paid amount
+  // Ödemeyi fatura para birimine çevir (kur dönüşümü ile)
+  const convertPaymentToInvoiceCurrency = (
+    paymentAmount: number,
+    paymentCurrency: string,
+    paymentExchangeRate: number,
+    invoiceCurrency: string
+  ): number => {
+    // Aynı para birimiyse dönüşüm gerekmez
+    if (paymentCurrency === invoiceCurrency) {
+      return paymentAmount;
+    }
+    
+    // Ödeme TRY ise, fatura döviz → böl
+    if (paymentCurrency === 'TRY') {
+      return paymentAmount / paymentExchangeRate;
+    }
+    
+    // Fatura TRY ise, ödeme döviz → çarp
+    if (invoiceCurrency === 'TRY') {
+      return paymentAmount * paymentExchangeRate;
+    }
+    
+    // Her ikisi de döviz ama farklı para birimleri
+    return paymentAmount / paymentExchangeRate;
+  };
+  
+  // Calculate invoice paid amount (kur dönüşümü ile)
   const getInvoicePaidAmount = (invoice: Invoice): number => {
     if (!invoice.payments) return 0;
     return invoice.payments
       .filter(p => p.status === 'completed')
-      .reduce((sum, p) => sum + p.amount, 0);
+      .reduce((sum, p) => {
+        const convertedAmount = convertPaymentToInvoiceCurrency(
+          p.amount,
+          p.currency,
+          p.exchangeRate || 1,
+          invoice.currency
+        );
+        return sum + convertedAmount;
+      }, 0);
   };
 
   // Filter data

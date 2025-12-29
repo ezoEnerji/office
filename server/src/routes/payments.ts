@@ -5,6 +5,56 @@ import { authenticateToken } from '../middleware/auth.js';
 const router = express.Router();
 const prisma = new PrismaClient();
 
+// Ödemeyi fatura para birimine çevir (kur dönüşümü ile)
+const convertPaymentToInvoiceCurrency = (
+  paymentAmount: number,
+  paymentCurrency: string,
+  paymentExchangeRate: number,
+  invoiceCurrency: string
+): number => {
+  // Aynı para birimiyse dönüşüm gerekmez
+  if (paymentCurrency === invoiceCurrency) {
+    return paymentAmount;
+  }
+  
+  // exchangeRate her zaman: payment currency / TRY veya TRY / agreement currency şeklinde
+  // Örnek: 30,000 TRY ödeme, kur 34, fatura USD ise:
+  // 30,000 / 34 = 882.35 USD
+  
+  // Ödeme TRY ise, fatura döviz → böl
+  if (paymentCurrency === 'TRY') {
+    return paymentAmount / paymentExchangeRate;
+  }
+  
+  // Fatura TRY ise, ödeme döviz → çarp
+  if (invoiceCurrency === 'TRY') {
+    return paymentAmount * paymentExchangeRate;
+  }
+  
+  // Her ikisi de döviz ama farklı para birimleri
+  // Bu durumda exchangeRate genellikle payment currency / TRY olarak saklanır
+  // Önce TRY'ye çevir, sonra fatura para birimine (ama invoice rate yok, bu sınırlı bir durum)
+  // En iyi yaklaşım: ödeme tutarını doğrudan exchangeRate ile dönüştür
+  return paymentAmount / paymentExchangeRate;
+};
+
+// Fatura için toplam ödenen tutarı hesapla (kur dönüşümü ile)
+const calculateTotalPaidForInvoice = (
+  payments: { amount: number; currency: string; exchangeRate: number; status: string }[],
+  invoiceCurrency: string
+): number => {
+  return payments.reduce((sum, p) => {
+    if (p.status !== 'completed') return sum;
+    const convertedAmount = convertPaymentToInvoiceCurrency(
+      p.amount,
+      p.currency,
+      p.exchangeRate || 1,
+      invoiceCurrency
+    );
+    return sum + convertedAmount;
+  }, 0);
+};
+
 // Get all payments
 router.get('/', authenticateToken, async (req, res) => {
   try {
@@ -144,10 +194,16 @@ router.post('/', authenticateToken, async (req, res) => {
       });
       
       if (invoiceWithPayments) {
-        const totalPaid = invoiceWithPayments.payments.reduce((sum, p) => sum + (p.status === 'completed' ? p.amount : 0), 0);
+        // Kur dönüşümü ile toplam ödenen tutarı hesapla
+        const totalPaid = calculateTotalPaidForInvoice(
+          invoiceWithPayments.payments,
+          invoiceWithPayments.currency
+        );
         let newStatus = invoiceWithPayments.status;
         
-        if (totalPaid >= invoiceWithPayments.totalAmount) {
+        // %1 tolerans ile karşılaştır (kur yuvarlama hataları için)
+        const tolerance = invoiceWithPayments.totalAmount * 0.01;
+        if (totalPaid >= invoiceWithPayments.totalAmount - tolerance) {
           newStatus = 'paid';
         } else if (invoiceWithPayments.status === 'draft' && totalPaid > 0) {
           newStatus = 'issued';
@@ -265,10 +321,16 @@ router.put('/:id', authenticateToken, async (req, res) => {
       });
       
       if (invoiceWithPayments) {
-        const totalPaid = invoiceWithPayments.payments.reduce((sum, p) => sum + (p.status === 'completed' ? p.amount : 0), 0);
+        // Kur dönüşümü ile toplam ödenen tutarı hesapla
+        const totalPaid = calculateTotalPaidForInvoice(
+          invoiceWithPayments.payments,
+          invoiceWithPayments.currency
+        );
         let newStatus = invoiceWithPayments.status;
         
-        if (totalPaid >= invoiceWithPayments.totalAmount) {
+        // %1 tolerans ile karşılaştır (kur yuvarlama hataları için)
+        const tolerance = invoiceWithPayments.totalAmount * 0.01;
+        if (totalPaid >= invoiceWithPayments.totalAmount - tolerance) {
           newStatus = 'paid';
         } else if (invoiceWithPayments.status === 'draft' && totalPaid > 0) {
           newStatus = 'issued';
@@ -323,10 +385,16 @@ router.delete('/:id', authenticateToken, async (req, res) => {
       });
       
       if (invoice) {
-        const totalPaid = invoice.payments.reduce((sum, p) => sum + (p.status === 'completed' ? p.amount : 0), 0);
+        // Kur dönüşümü ile toplam ödenen tutarı hesapla
+        const totalPaid = calculateTotalPaidForInvoice(
+          invoice.payments,
+          invoice.currency
+        );
         let newStatus = invoice.status;
         
-        if (totalPaid >= invoice.totalAmount) {
+        // %1 tolerans ile karşılaştır (kur yuvarlama hataları için)
+        const tolerance = invoice.totalAmount * 0.01;
+        if (totalPaid >= invoice.totalAmount - tolerance) {
           newStatus = 'paid';
         } else if (totalPaid === 0) {
           newStatus = invoice.status === 'paid' ? 'issued' : invoice.status;

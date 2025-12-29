@@ -599,12 +599,61 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
     return invoice?.invoiceType === 'outgoing' ? 'incoming' : 'outgoing';
   };
   
-  // Faturanın kalan miktarını hesapla
+  // Ödemeyi fatura para birimine çevir (kur dönüşümü ile)
+  const convertPaymentToInvoiceCurrency = (
+    paymentAmount: number,
+    paymentCurrency: string,
+    paymentExchangeRate: number,
+    invoiceCurrency: string
+  ): number => {
+    // Aynı para birimiyse dönüşüm gerekmez
+    if (paymentCurrency === invoiceCurrency) {
+      return paymentAmount;
+    }
+    
+    // Ödeme TRY ise, fatura döviz → böl
+    if (paymentCurrency === 'TRY') {
+      return paymentAmount / paymentExchangeRate;
+    }
+    
+    // Fatura TRY ise, ödeme döviz → çarp
+    if (invoiceCurrency === 'TRY') {
+      return paymentAmount * paymentExchangeRate;
+    }
+    
+    // Her ikisi de döviz ama farklı para birimleri
+    return paymentAmount / paymentExchangeRate;
+  };
+  
+  // Faturanın kalan miktarını hesapla (kur dönüşümü ile)
   const getInvoiceRemainingAmount = (invoice: any): number => {
     if (!invoice) return 0;
     const invoicePayments = payments.filter(p => p.invoiceId === invoice.id && p.status === 'completed');
-    const totalPaid = invoicePayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+    const totalPaid = invoicePayments.reduce((sum, p) => {
+      const convertedAmount = convertPaymentToInvoiceCurrency(
+        p.amount || 0,
+        p.currency,
+        p.exchangeRate || 1,
+        invoice.currency
+      );
+      return sum + convertedAmount;
+    }, 0);
     return Math.max(invoice.totalAmount - totalPaid, 0);
+  };
+  
+  // Faturanın ödenen toplam miktarını hesapla (kur dönüşümü ile)
+  const getInvoicePaidAmount = (invoice: any): number => {
+    if (!invoice) return 0;
+    const invoicePayments = payments.filter(p => p.invoiceId === invoice.id && p.status === 'completed');
+    return invoicePayments.reduce((sum, p) => {
+      const convertedAmount = convertPaymentToInvoiceCurrency(
+        p.amount || 0,
+        p.currency,
+        p.exchangeRate || 1,
+        invoice.currency
+      );
+      return sum + convertedAmount;
+    }, 0);
   };
   
   const openPaymentModal = (payment?: any) => {
@@ -4430,9 +4479,9 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                 
                 {/* Amount Details */}
                 {(() => {
-                  const invoicePayments = payments.filter(p => p.invoiceId === viewingInvoice.id && p.status === 'completed');
-                  const totalPaid = invoicePayments.reduce((sum, p) => sum + (p.amount || 0), 0);
-                  const remainingAmount = viewingInvoice.totalAmount - totalPaid;
+                  // Kur dönüşümü ile toplam ödenen tutarı hesapla
+                  const totalPaid = getInvoicePaidAmount(viewingInvoice);
+                  const remainingAmount = getInvoiceRemainingAmount(viewingInvoice);
                   const progressPercent = viewingInvoice.totalAmount > 0 ? Math.min((totalPaid / viewingInvoice.totalAmount) * 100, 100) : 0;
                   
                   return (
@@ -4600,9 +4649,9 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                   const linkedInvoice = invoices.find(inv => inv.id === viewingPayment.invoiceId);
                   if (!linkedInvoice) return null;
                   
-                  const invoicePayments = payments.filter(p => p.invoiceId === linkedInvoice.id && p.status === 'completed');
-                  const totalPaid = invoicePayments.reduce((sum, p) => sum + (p.amount || 0), 0);
-                  const remainingAmount = linkedInvoice.totalAmount - totalPaid;
+                  // Kur dönüşümü ile toplam ödenen tutarı hesapla
+                  const totalPaid = getInvoicePaidAmount(linkedInvoice);
+                  const remainingAmount = getInvoiceRemainingAmount(linkedInvoice);
                   const progressPercent = linkedInvoice.totalAmount > 0 ? Math.min((totalPaid / linkedInvoice.totalAmount) * 100, 100) : 0;
                   
                   return (
