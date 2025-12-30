@@ -1560,6 +1560,44 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
     const budgetRemaining = selectedProject.budget - totalExpense;
     const budgetUsagePercent = Math.min(100, Math.max(0, (budgetUsed / selectedProject.budget) * 100));
     const balance = totalIncome - totalExpense;
+    
+    // Kalan Alacak hesapla: Giden faturalar (müşteriden alacak) - Gelen ödemeler
+    const projectInvoices = invoices.filter(inv => inv.projectId === selectedProject.id);
+    const outgoingInvoicesTotal = projectInvoices
+      .filter(inv => inv.invoiceType === 'outgoing') // Bizim kestiğimiz faturalar
+      .reduce((sum, inv) => {
+        // Fatura para birimini proje para birimine çevir
+        if (inv.currency === selectedProject.agreementCurrency) {
+          return sum + inv.totalAmount;
+        } else if (inv.currency === 'TRY') {
+          // TRY → Proje para birimi
+          const rate = MARKET_RATES[selectedProject.agreementCurrency as keyof typeof MARKET_RATES] || 1;
+          return sum + (inv.totalAmount / rate);
+        } else if (selectedProject.agreementCurrency === 'TRY') {
+          // Döviz → TRY
+          const rate = MARKET_RATES[inv.currency as keyof typeof MARKET_RATES] || 1;
+          return sum + (inv.totalAmount * rate);
+        }
+        return sum + inv.totalAmount;
+      }, 0);
+    
+    // Gelen ödemeler (outgoing faturalara yapılan ödemeler)
+    const outgoingInvoiceIds = projectInvoices.filter(inv => inv.invoiceType === 'outgoing').map(inv => inv.id);
+    const receivedPayments = payments
+      .filter(p => p.invoiceId && outgoingInvoiceIds.includes(p.invoiceId) && p.status === 'completed')
+      .reduce((sum, p) => {
+        // Ödeme para birimini proje para birimine çevir
+        if (p.currency === selectedProject.agreementCurrency) {
+          return sum + p.amount;
+        } else if (p.currency === 'TRY') {
+          return sum + (p.amount / (p.exchangeRate || 1));
+        } else if (selectedProject.agreementCurrency === 'TRY') {
+          return sum + (p.amount * (p.exchangeRate || 1));
+        }
+        return sum + p.amount;
+      }, 0);
+    
+    const remainingReceivables = outgoingInvoicesTotal - receivedPayments;
 
     const manager = users.find(u => u.id === selectedProject.managerId);
     const company = companies.find(c => c.id === selectedProject.companyId);
@@ -1754,7 +1792,7 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
            {detailTab === 'financials' && (
               <div className="max-w-7xl mx-auto space-y-6">
                  {/* KPI Cards */}
-                 <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                 <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
                     <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
                        <div className="text-sm text-slate-500 mb-1">Toplam Bütçe</div>
                        <div className="text-2xl font-bold text-slate-800">{formatCurrency(selectedProject.budget, selectedProject.agreementCurrency)}</div>
@@ -1772,6 +1810,15 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                        <div className="text-sm text-slate-500 mb-1">Toplam Gelir</div>
                        <div className="text-2xl font-bold text-green-600">{formatCurrency(totalIncome, selectedProject.agreementCurrency)}</div>
                        <div className="text-xs text-slate-400 mt-1">Faturalandırılan</div>
+                    </div>
+                    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                       <div className="text-sm text-slate-500 mb-1">Kalan Alacak</div>
+                       <div className={`text-2xl font-bold ${remainingReceivables > 0 ? 'text-amber-600' : 'text-green-600'}`}>
+                         {formatCurrency(remainingReceivables, selectedProject.agreementCurrency)}
+                       </div>
+                       <div className="text-xs text-slate-400 mt-1">
+                         {remainingReceivables > 0 ? 'Tahsil Edilecek' : 'Tümü Tahsil Edildi'}
+                       </div>
                     </div>
                     <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
                        <div className="text-sm text-slate-500 mb-1">Kalan Bütçe</div>
