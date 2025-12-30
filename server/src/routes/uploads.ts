@@ -6,32 +6,60 @@ import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
 
+// Upload dizinini oluştur (başlangıçta)
+const baseUploadDir = path.join(process.cwd(), 'uploads');
+const avatarsDir = path.join(baseUploadDir, 'avatars');
+const documentsDir = path.join(baseUploadDir, 'documents');
+const generalDir = path.join(baseUploadDir, 'general');
+
+[baseUploadDir, avatarsDir, documentsDir, generalDir].forEach(dir => {
+  try {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+      console.log('Dizin oluşturuldu:', dir);
+    }
+  } catch (err) {
+    console.error('Dizin oluşturma hatası:', dir, err);
+  }
+});
+
 // Multer configuration for general file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    // Dosya tipine göre klasör belirle
-    const fileType = req.query.type || 'general';
-    let uploadPath = 'uploads/';
-    
-    if (fileType === 'avatar') {
-      uploadPath = 'uploads/avatars/';
-    } else if (fileType === 'contract' || fileType === 'document') {
-      uploadPath = 'uploads/documents/';
-    } else {
-      uploadPath = 'uploads/general/';
+    try {
+      // Dosya tipine göre klasör belirle
+      const fileType = req.query.type || 'general';
+      let uploadPath = generalDir;
+      
+      if (fileType === 'avatar') {
+        uploadPath = avatarsDir;
+      } else if (fileType === 'contract' || fileType === 'document') {
+        uploadPath = documentsDir;
+      }
+      
+      // Klasör yoksa oluştur
+      if (!fs.existsSync(uploadPath)) {
+        fs.mkdirSync(uploadPath, { recursive: true });
+      }
+      
+      console.log('Yükleme dizini:', uploadPath);
+      cb(null, uploadPath);
+    } catch (err: any) {
+      console.error('Destination hatası:', err);
+      cb(err, '');
     }
-    
-    // Klasör yoksa oluştur
-    if (!fs.existsSync(uploadPath)) {
-      fs.mkdirSync(uploadPath, { recursive: true });
-    }
-    
-    cb(null, uploadPath);
   },
   filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const originalName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
-    cb(null, uniqueSuffix + '-' + originalName);
+    try {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      const originalName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const filename = uniqueSuffix + '-' + originalName;
+      console.log('Dosya adı:', filename);
+      cb(null, filename);
+    } catch (err: any) {
+      console.error('Filename hatası:', err);
+      cb(err, '');
+    }
   }
 });
 
@@ -66,23 +94,35 @@ const upload = multer({
 
 // Upload file (general purpose) - with proper error handling
 router.post('/', authenticateToken, (req, res) => {
-  upload.single('file')(req, res, (err) => {
+  console.log('Upload isteği alındı, type:', req.query.type);
+  
+  upload.single('file')(req, res, (err: any) => {
     // Multer hata kontrolü
-    if (err instanceof multer.MulterError) {
-      console.error('Multer hatası:', err);
-      if (err.code === 'LIMIT_FILE_SIZE') {
-        return res.status(400).json({ error: 'Dosya boyutu çok büyük (max 20MB)' });
+    if (err) {
+      console.error('Upload hatası:', err.message, err.code, err.stack);
+      
+      if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({ error: 'Dosya boyutu çok büyük (max 20MB)' });
+        }
+        return res.status(400).json({ error: `Yükleme hatası: ${err.message}` });
       }
-      return res.status(400).json({ error: `Yükleme hatası: ${err.message}` });
-    } else if (err) {
-      console.error('Dosya yükleme hatası:', err);
-      return res.status(400).json({ error: err.message });
+      return res.status(400).json({ error: err.message || 'Dosya yükleme hatası' });
     }
     
     try {
       if (!req.file) {
-        return res.status(400).json({ error: 'Dosya yüklenmedi' });
+        console.error('Dosya bulunamadı - req.file yok');
+        return res.status(400).json({ error: 'Dosya yüklenmedi veya desteklenmeyen format' });
       }
+      
+      console.log('Dosya bilgisi:', {
+        filename: req.file.filename,
+        originalname: req.file.originalname,
+        mimetype: req.file.mimetype,
+        size: req.file.size,
+        path: req.file.path
+      });
       
       const fileType = req.query.type || 'general';
       let relativePath = '';
@@ -100,12 +140,12 @@ router.post('/', authenticateToken, (req, res) => {
       const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:3001';
       const fullUrl = `${protocol}://${host}${relativePath}`;
       
-      console.log('Dosya yüklendi:', { relativePath, fullUrl, fileType, originalName: req.file.originalname });
+      console.log('Dosya başarıyla yüklendi:', { relativePath, fullUrl });
       
       res.json({ url: fullUrl, path: relativePath });
     } catch (error: any) {
-      console.error('Dosya işleme hatası:', error);
-      res.status(400).json({ error: error.message });
+      console.error('Dosya işleme hatası:', error.message, error.stack);
+      res.status(500).json({ error: error.message || 'Sunucu hatası' });
     }
   });
 });
