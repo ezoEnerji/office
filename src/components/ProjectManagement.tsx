@@ -1598,6 +1598,12 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
       }, 0);
     
     const remainingReceivables = outgoingInvoicesTotal - receivedPayments;
+    
+    // Bütçe - Alınan Ödemeler (ne kadar ödeme alındığını bütçeye oranla gösterir)
+    const budgetMinusReceivedPayments = selectedProject.budget - receivedPayments;
+    const paymentCollectionPercent = selectedProject.budget > 0 
+      ? Math.min(100, Math.max(0, (receivedPayments / selectedProject.budget) * 100)) 
+      : 0;
 
     const manager = users.find(u => u.id === selectedProject.managerId);
     const company = companies.find(c => c.id === selectedProject.companyId);
@@ -1792,45 +1798,53 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
            {detailTab === 'financials' && (
               <div className="max-w-7xl mx-auto space-y-6">
                  {/* KPI Cards */}
-                 <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                       <div className="text-sm text-slate-500 mb-1">Toplam Bütçe</div>
-                       <div className="text-2xl font-bold text-slate-800">{formatCurrency(selectedProject.budget, selectedProject.agreementCurrency)}</div>
-                       <div className="text-xs text-green-600 mt-1 flex items-center gap-1"><CheckCircle size={10}/> Onaylı</div>
+                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                       <div className="text-xs text-slate-500 mb-1">Toplam Bütçe</div>
+                       <div className="text-xl font-bold text-slate-800">{formatCurrency(selectedProject.budget, selectedProject.agreementCurrency)}</div>
+                       <div className="text-[10px] text-green-600 mt-1 flex items-center gap-1"><CheckCircle size={10}/> Onaylı</div>
                     </div>
-                    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                       <div className="text-sm text-slate-500 mb-1">Gerçekleşen Gider</div>
-                       <div className="text-2xl font-bold text-red-600">{formatCurrency(totalExpense, selectedProject.agreementCurrency)}</div>
+                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                       <div className="text-xs text-slate-500 mb-1">Gerçekleşen Gider</div>
+                       <div className="text-xl font-bold text-red-600">{formatCurrency(totalExpense, selectedProject.agreementCurrency)}</div>
                        <div className="w-full bg-slate-100 h-1 mt-2 rounded-full overflow-hidden">
                           <div className={`h-full ${budgetUsagePercent > 90 ? 'bg-red-500' : 'bg-blue-500'}`} style={{ width: `${budgetUsagePercent}%` }}></div>
                        </div>
                        <div className="text-[10px] text-slate-400 mt-1 text-right">%{budgetUsagePercent.toFixed(1)} Kullanım</div>
                     </div>
-                    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                       <div className="text-sm text-slate-500 mb-1">Toplam Gelir</div>
-                       <div className="text-2xl font-bold text-green-600">{formatCurrency(totalIncome, selectedProject.agreementCurrency)}</div>
-                       <div className="text-xs text-slate-400 mt-1">Faturalandırılan</div>
+                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                       <div className="text-xs text-slate-500 mb-1">Toplam Gelir</div>
+                       <div className="text-xl font-bold text-green-600">{formatCurrency(totalIncome, selectedProject.agreementCurrency)}</div>
+                       <div className="text-[10px] text-slate-400 mt-1">Faturalandırılan</div>
                     </div>
-                    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                       <div className="text-sm text-slate-500 mb-1">Kalan Alacak</div>
-                       <div className={`text-2xl font-bold ${remainingReceivables > 0 ? 'text-amber-600' : 'text-green-600'}`}>
+                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                       <div className="text-xs text-slate-500 mb-1">Alınan Ödemeler</div>
+                       <div className="text-xl font-bold text-blue-600">{formatCurrency(receivedPayments, selectedProject.agreementCurrency)}</div>
+                       <div className="w-full bg-slate-100 h-1 mt-2 rounded-full overflow-hidden">
+                          <div className="h-full bg-blue-500" style={{ width: `${paymentCollectionPercent}%` }}></div>
+                       </div>
+                       <div className="text-[10px] text-slate-400 mt-1 text-right">%{paymentCollectionPercent.toFixed(1)} Tahsilat</div>
+                    </div>
+                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                       <div className="text-xs text-slate-500 mb-1">Kalan Alacak</div>
+                       <div className={`text-xl font-bold ${remainingReceivables > 0 ? 'text-amber-600' : 'text-green-600'}`}>
                          {formatCurrency(remainingReceivables, selectedProject.agreementCurrency)}
                        </div>
-                       <div className="text-xs text-slate-400 mt-1">
+                       <div className="text-[10px] text-slate-400 mt-1">
                          {remainingReceivables > 0 ? 'Tahsil Edilecek' : 'Tümü Tahsil Edildi'}
                        </div>
                     </div>
-                    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                       <div className="text-sm text-slate-500 mb-1">Kalan Bütçe</div>
-                       <div className={`text-2xl font-bold ${budgetRemaining < 0 ? 'text-red-600' : 'text-slate-800'}`}>{formatCurrency(budgetRemaining, selectedProject.agreementCurrency)}</div>
-                       <div className="text-xs text-slate-400 mt-1">Kullanılabilir Limit</div>
+                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                       <div className="text-xs text-slate-500 mb-1">Kalan Bütçe</div>
+                       <div className={`text-xl font-bold ${budgetRemaining < 0 ? 'text-red-600' : 'text-slate-800'}`}>{formatCurrency(budgetRemaining, selectedProject.agreementCurrency)}</div>
+                       <div className="text-[10px] text-slate-400 mt-1">Kullanılabilir Limit</div>
                     </div>
-                    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                       <div className="text-sm text-slate-500 mb-1">Net Durum</div>
-                       <div className={`text-2xl font-bold ${balance >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                       <div className="text-xs text-slate-500 mb-1">Net Durum</div>
+                       <div className={`text-xl font-bold ${balance >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                          {balance >= 0 ? '+' : ''}{formatCurrency(balance, selectedProject.agreementCurrency)}
                        </div>
-                       <div className={`text-xs mt-1 ${balance >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                       <div className={`text-[10px] mt-1 ${balance >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                          {balance >= 0 ? 'Kârda' : 'Zararda'}
                        </div>
                     </div>
