@@ -200,6 +200,7 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
     currency: 'TRY' as Currency,
     exchangeRate: 1, // Döviz kuru
     paymentMethod: 'transfer' as 'cash' | 'transfer' | 'card' | 'check',
+    category: 'Genel', // Kategori
     invoiceId: '',
     bankAccountId: '',
     bankCardId: '',
@@ -667,6 +668,7 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
         currency: payment.currency,
         exchangeRate: payment.exchangeRate || 1,
         paymentMethod: payment.paymentMethod,
+        category: payment.category || 'Genel',
         invoiceId: payment.invoiceId || '',
         bankAccountId: payment.bankAccountId || '',
         bankCardId: payment.bankCardId || '',
@@ -680,13 +682,17 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
       const selectedInvoice = selectedInvoiceId ? invoices.find(inv => inv.id === selectedInvoiceId) : null;
       // Kalan miktarı hesapla
       const remainingAmount = getInvoiceRemainingAmount(selectedInvoice);
+      // Varsayılan kategori: gelen ödeme ise Tahsilat, giden ödeme ise Ödeme
+      const paymentType = getPaymentTypeFromInvoice(selectedInvoice);
+      const defaultCategory = paymentType === 'incoming' ? 'Tahsilat' : 'Ödeme';
       setPaymentFormData({
-        paymentType: getPaymentTypeFromInvoice(selectedInvoice),
+        paymentType: paymentType,
         paymentDate: new Date().toISOString().split('T')[0],
         amount: remainingAmount, // Kalan miktarı getir
         currency: selectedInvoice?.currency || selectedProject?.agreementCurrency || 'TRY',
         exchangeRate: 1,
         paymentMethod: 'transfer',
+        category: defaultCategory,
         invoiceId: selectedInvoiceId || '',
         bankAccountId: bankAccounts[0]?.id || '',
         bankCardId: '',
@@ -4239,16 +4245,47 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                   </label>
                 </div>
                 
-                <label className="block">
-                  <span className="text-xs font-medium text-slate-500 block mb-1">Referans No</span>
-                  <input 
-                    type="text" 
-                    className="w-full p-2.5 border rounded-lg" 
-                    value={paymentFormData.referenceNumber} 
-                    onChange={e => setPaymentFormData({...paymentFormData, referenceNumber: e.target.value})}
-                    placeholder="Dekont/İşlem numarası..."
-                  />
-                </label>
+                <div className="grid grid-cols-2 gap-4">
+                  <label className="block">
+                    <span className="text-xs font-medium text-slate-500 block mb-1">Referans No</span>
+                    <input 
+                      type="text" 
+                      className="w-full p-2.5 border rounded-lg" 
+                      value={paymentFormData.referenceNumber} 
+                      onChange={e => setPaymentFormData({...paymentFormData, referenceNumber: e.target.value})}
+                      placeholder="Dekont/İşlem numarası..."
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-medium text-slate-500 block mb-1">Kategori</span>
+                    <select 
+                      className="w-full p-2.5 border rounded-lg"
+                      value={paymentFormData.category}
+                      onChange={e => setPaymentFormData({...paymentFormData, category: e.target.value})}
+                    >
+                      {paymentFormData.paymentType === 'incoming' ? (
+                        <>
+                          <option value="Tahsilat">Tahsilat</option>
+                          <option value="Avans Tahsilatı">Avans Tahsilatı</option>
+                          <option value="Hakediş Tahsilatı">Hakediş Tahsilatı</option>
+                          <option value="Kesin Kabul Tahsilatı">Kesin Kabul Tahsilatı</option>
+                          <option value="Genel">Genel</option>
+                        </>
+                      ) : (
+                        <>
+                          <option value="Ödeme">Ödeme</option>
+                          <option value="Tedarikçi Ödemesi">Tedarikçi Ödemesi</option>
+                          <option value="Alt Yüklenici Ödemesi">Alt Yüklenici Ödemesi</option>
+                          <option value="Personel Gideri">Personel Gideri</option>
+                          <option value="Malzeme Gideri">Malzeme Gideri</option>
+                          <option value="Kira Gideri">Kira Gideri</option>
+                          <option value="Vergi/Harç">Vergi/Harç</option>
+                          <option value="Genel">Genel</option>
+                        </>
+                      )}
+                    </select>
+                  </label>
+                </div>
                 
                 <label className="block">
                   <span className="text-xs font-medium text-slate-500 block mb-1">Açıklama</span>

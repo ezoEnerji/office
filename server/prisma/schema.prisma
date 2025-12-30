@@ -336,6 +336,7 @@ model Payment {
   currency      String   @default("TRY") // Currency enum
   exchangeRate  Float    @default(1) // Döviz kuru (proje para birimine çevrim için)
   paymentMethod String   @default("transfer") // "cash" | "transfer" | "card" | "check"
+  category      String   @default("Genel") // Kategori (Transaction'a da atanır)
   invoiceId     String?  // Bağlı fatura
   bankAccountId String?  // Ödeme yapılan hesap
   bankCardId    String?  // Ödeme yapılan kart

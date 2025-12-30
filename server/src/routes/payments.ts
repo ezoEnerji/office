@@ -119,10 +119,15 @@ router.post('/', authenticateToken, async (req, res) => {
   try {
     const {
       paymentType, paymentDate, amount, currency, exchangeRate, paymentMethod,
-      invoiceId, bankAccountId, bankCardId, description, referenceNumber, status, documentUrl
+      invoiceId, bankAccountId, bankCardId, description, referenceNumber, status, documentUrl, category
     } = req.body;
     
     const userId = (req as any).user?.userId || (req as any).user?.id;
+    
+    // Varsayılan kategori belirle
+    const paymentCategory = category && category.trim() !== '' 
+      ? category.trim() 
+      : (paymentType === 'incoming' ? 'Tahsilat' : 'Ödeme');
     
     // Fatura bilgilerini al (projectId ve entityId için)
     let invoice: any = null;
@@ -140,6 +145,7 @@ router.post('/', authenticateToken, async (req, res) => {
       currency: currency || 'TRY',
       exchangeRate: exchangeRate ? Number(exchangeRate) : 1,
       paymentMethod: paymentMethod || 'transfer',
+      category: paymentCategory,
       invoiceId: invoiceId && invoiceId.trim() !== '' ? invoiceId : null,
       bankAccountId: bankAccountId && bankAccountId.trim() !== '' ? bankAccountId : null,
       bankCardId: bankCardId && bankCardId.trim() !== '' ? bankCardId : null,
@@ -181,7 +187,7 @@ router.post('/', authenticateToken, async (req, res) => {
             exchangeRate: exchangeRate ? Number(exchangeRate) : 1,
             date: new Date(paymentDate),
             description: transactionDesc,
-            category: transactionType === 'income' ? 'Ödeme Girişi' : 'Ödeme Çıkışı',
+            category: paymentCategory, // Ödeme kategorisi
             invoiceNumber: invoice.invoiceNumber || null,
             contractId: invoice.contractId || null,
             entityId: invoice.entityId || null,
@@ -258,7 +264,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
     const {
       id, // exclude from update data
       paymentType, paymentDate, amount, currency, exchangeRate, paymentMethod,
-      invoiceId, bankAccountId, bankCardId, description, referenceNumber, status, documentUrl
+      invoiceId, bankAccountId, bankCardId, description, referenceNumber, status, documentUrl, category
     } = req.body;
     
     // Mevcut payment'ı al (transactionId için)
@@ -273,6 +279,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
       currency,
       exchangeRate: exchangeRate !== undefined ? Number(exchangeRate) : undefined,
       paymentMethod,
+      category: category !== undefined ? (category.trim() !== '' ? category.trim() : 'Genel') : undefined,
       invoiceId: invoiceId && invoiceId.trim() !== '' ? invoiceId : null,
       bankAccountId: bankAccountId && bankAccountId.trim() !== '' ? bankAccountId : null,
       bankCardId: bankCardId && bankCardId.trim() !== '' ? bankCardId : null,
@@ -318,6 +325,11 @@ router.put('/:id', authenticateToken, async (req, res) => {
         ? (documentUrl && documentUrl.trim() !== '' ? documentUrl : null)
         : (payment.documentUrl || null);
       
+      // Kategori: güncelleme varsa yeni değer, yoksa mevcut payment'tan veya varsayılan
+      const finalCategory = category !== undefined 
+        ? (category.trim() !== '' ? category.trim() : 'Genel')
+        : (payment.category || (transactionType === 'income' ? 'Tahsilat' : 'Ödeme'));
+      
       const transactionUpdateData: any = {
         type: transactionType,
         amount: amount !== undefined ? Number(amount) : undefined,
@@ -325,7 +337,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
         exchangeRate: exchangeRate !== undefined ? Number(exchangeRate) : undefined,
         date: paymentDate ? new Date(paymentDate) : undefined,
         description: transactionDesc,
-        category: transactionType === 'income' ? 'Ödeme Girişi' : 'Ödeme Çıkışı',
+        category: finalCategory,
         invoiceNumber: invoice?.invoiceNumber || undefined,
         contractId: invoice?.contractId || undefined,
         entityId: invoice?.entityId || undefined,
@@ -368,7 +380,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
             exchangeRate: payment.exchangeRate || 1,
             date: new Date(payment.paymentDate),
             description: transactionDesc,
-            category: transactionType === 'income' ? 'Ödeme Girişi' : 'Ödeme Çıkışı',
+            category: payment.category || (transactionType === 'income' ? 'Tahsilat' : 'Ödeme'),
             invoiceNumber: invoice.invoiceNumber || null,
             contractId: invoice.contractId || null,
             entityId: invoice.entityId || null,
