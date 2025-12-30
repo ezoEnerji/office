@@ -1582,20 +1582,22 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
     }, 0);
     
     // Alınan ödemeler toplamı (giden faturalara yapılan ödemeler)
-    const outgoingInvoiceIds = outgoingInvoices.map(inv => inv.id);
-    const receivedPayments = payments
-      .filter(p => p.invoiceId && outgoingInvoiceIds.includes(p.invoiceId) && p.status === 'completed')
-      .reduce((sum, p) => {
-        // Ödeme para birimini proje para birimine çevir (kur ile)
-        if (p.currency === selectedProject.agreementCurrency) {
-          return sum + p.amount;
-        } else if (p.currency === 'TRY') {
-          return sum + (p.amount / (p.exchangeRate || 1));
-        } else if (selectedProject.agreementCurrency === 'TRY') {
-          return sum + (p.amount * (p.exchangeRate || 1));
-        }
-        return sum + p.amount;
-      }, 0);
+    // Her fatura için ödenen toplamı fatura para biriminde hesapla, sonra proje para birimine çevir
+    const receivedPayments = outgoingInvoices.reduce((total, inv) => {
+      const paidAmount = getInvoicePaidAmount(inv); // Fatura para biriminde ödenen miktar
+      
+      // Fatura para birimini proje para birimine çevir
+      if (inv.currency === selectedProject.agreementCurrency) {
+        return total + paidAmount;
+      } else if (inv.currency === 'TRY') {
+        const rate = MARKET_RATES[selectedProject.agreementCurrency as keyof typeof MARKET_RATES] || 1;
+        return total + (paidAmount / rate);
+      } else if (selectedProject.agreementCurrency === 'TRY') {
+        const rate = MARKET_RATES[inv.currency as keyof typeof MARKET_RATES] || 1;
+        return total + (paidAmount * rate);
+      }
+      return total + paidAmount;
+    }, 0);
     
     // Bütçe - Alınan Ödemeler (ne kadar ödeme alındığını bütçeye oranla gösterir)
     const budgetMinusReceivedPayments = selectedProject.budget - receivedPayments;
