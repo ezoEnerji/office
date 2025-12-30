@@ -64,26 +64,50 @@ const upload = multer({
   }
 });
 
-// Upload file (general purpose)
-router.post('/', authenticateToken, upload.single('file'), async (req, res) => {
-  try {
-    if (!req.file) return res.status(400).json({ error: 'Dosya yüklenmedi' });
-    
-    const fileType = req.query.type || 'general';
-    let fileUrl = '';
-    
-    if (fileType === 'avatar') {
-      fileUrl = `/uploads/avatars/${req.file.filename}`;
-    } else if (fileType === 'contract' || fileType === 'document') {
-      fileUrl = `/uploads/documents/${req.file.filename}`;
-    } else {
-      fileUrl = `/uploads/general/${req.file.filename}`;
+// Upload file (general purpose) - with proper error handling
+router.post('/', authenticateToken, (req, res) => {
+  upload.single('file')(req, res, (err) => {
+    // Multer hata kontrolü
+    if (err instanceof multer.MulterError) {
+      console.error('Multer hatası:', err);
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ error: 'Dosya boyutu çok büyük (max 20MB)' });
+      }
+      return res.status(400).json({ error: `Yükleme hatası: ${err.message}` });
+    } else if (err) {
+      console.error('Dosya yükleme hatası:', err);
+      return res.status(400).json({ error: err.message });
     }
     
-    res.json({ url: fileUrl, path: fileUrl });
-  } catch (error: any) {
-    res.status(400).json({ error: error.message });
-  }
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: 'Dosya yüklenmedi' });
+      }
+      
+      const fileType = req.query.type || 'general';
+      let relativePath = '';
+      
+      if (fileType === 'avatar') {
+        relativePath = `/uploads/avatars/${req.file.filename}`;
+      } else if (fileType === 'contract' || fileType === 'document') {
+        relativePath = `/uploads/documents/${req.file.filename}`;
+      } else {
+        relativePath = `/uploads/general/${req.file.filename}`;
+      }
+      
+      // Tam URL oluştur (production için)
+      const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+      const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:3001';
+      const fullUrl = `${protocol}://${host}${relativePath}`;
+      
+      console.log('Dosya yüklendi:', { relativePath, fullUrl, fileType, originalName: req.file.originalname });
+      
+      res.json({ url: fullUrl, path: relativePath });
+    } catch (error: any) {
+      console.error('Dosya işleme hatası:', error);
+      res.status(400).json({ error: error.message });
+    }
+  });
 });
 
 export default router;
