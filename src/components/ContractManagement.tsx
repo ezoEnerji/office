@@ -12,7 +12,8 @@ import {
   ChevronRight,
   Edit,
   Trash2,
-  Upload // Added
+  Upload,
+  ExternalLink
 } from 'lucide-react';
 import { Contract, ContractType, ContractStatus, Project, Entity, Company, Transaction, Currency } from '../types';
 import { CONTRACT_STATUS_LABELS, CONTRACT_TYPE_LABELS, MARKET_RATES } from '../data/constants';
@@ -398,6 +399,25 @@ export const ContractManagement: React.FC<ContractManagementProps> = ({
                       <Download size={20} className="text-slate-400" /> Ekli Dosyalar
                     </h3>
                     <div className="space-y-2">
+                      {/* Ana sözleşme PDF'i */}
+                      {(selectedContract as any).documentUrl && (
+                        <a 
+                          href={(selectedContract as any).documentUrl} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-3 p-3 rounded-lg border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 transition group"
+                        >
+                          <div className="p-2 bg-indigo-100 text-indigo-600 rounded">
+                            <FileText size={16} />
+                          </div>
+                          <div className="flex-1 overflow-hidden">
+                            <div className="text-sm font-medium text-indigo-700 truncate">Sözleşme PDF</div>
+                            <div className="text-[10px] text-indigo-500">Ana Sözleşme Belgesi</div>
+                          </div>
+                          <ExternalLink size={16} className="text-indigo-400 group-hover:text-indigo-600" />
+                        </a>
+                      )}
+                      {/* Ek dosyalar */}
                       {selectedContract.attachments.length > 0 ? selectedContract.attachments.map((file, i) => (
                         <a key={i} href={file} target="_blank" className="flex items-center gap-3 p-3 rounded-lg border border-slate-100 hover:bg-slate-50 transition group">
                           <div className="p-2 bg-red-50 text-red-600 rounded">
@@ -409,7 +429,7 @@ export const ContractManagement: React.FC<ContractManagementProps> = ({
                           </div>
                           <Download size={16} className="text-slate-300 group-hover:text-slate-600" />
                         </a>
-                      )) : (
+                      )) : !((selectedContract as any).documentUrl) && (
                         <div className="text-center text-sm text-slate-400 py-4 bg-slate-50 rounded-lg border border-dashed border-slate-200">
                           Dosya yüklenmemiş.
                         </div>

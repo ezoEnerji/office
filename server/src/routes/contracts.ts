@@ -69,7 +69,9 @@ router.post('/', authenticateToken, async (req, res) => {
         : [],
       // Boş string'leri null'a çevir
       paymentTerms: req.body.paymentTerms && typeof req.body.paymentTerms === 'string' && req.body.paymentTerms.trim() !== '' ? req.body.paymentTerms.trim() : null,
-      description: req.body.description && typeof req.body.description === 'string' && req.body.description.trim() !== '' ? req.body.description.trim() : null
+      description: req.body.description && typeof req.body.description === 'string' && req.body.description.trim() !== '' ? req.body.description.trim() : null,
+      // Sözleşme PDF linki
+      documentUrl: req.body.documentUrl && typeof req.body.documentUrl === 'string' && req.body.documentUrl.trim() !== '' ? req.body.documentUrl.trim() : null
     };
 
     console.log('Contract create data:', JSON.stringify(data, null, 2));
@@ -100,6 +102,14 @@ router.put('/:id', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Ad boş olamaz' });
     }
 
+    // Mevcut sözleşmeyi al (documentUrl korumak için)
+    const existingContract = await prisma.contract.findUnique({
+      where: { id: req.params.id }
+    });
+    if (!existingContract) {
+      return res.status(404).json({ error: 'Sözleşme bulunamadı' });
+    }
+
     const data: any = {
       code: req.body.code ? req.body.code.trim() : undefined,
       name: req.body.name ? req.body.name.trim() : undefined,
@@ -118,7 +128,11 @@ router.put('/:id', authenticateToken, async (req, res) => {
       endDate: req.body.endDate ? new Date(req.body.endDate) : undefined,
       // Boş string'leri null'a çevir
       paymentTerms: req.body.paymentTerms && typeof req.body.paymentTerms === 'string' && req.body.paymentTerms.trim() !== '' ? req.body.paymentTerms.trim() : null,
-      description: req.body.description && typeof req.body.description === 'string' && req.body.description.trim() !== '' ? req.body.description.trim() : null
+      description: req.body.description && typeof req.body.description === 'string' && req.body.description.trim() !== '' ? req.body.description.trim() : null,
+      // Sözleşme PDF linki - undefined ise mevcut değeri koru
+      documentUrl: req.body.documentUrl !== undefined 
+        ? (req.body.documentUrl && typeof req.body.documentUrl === 'string' && req.body.documentUrl.trim() !== '' ? req.body.documentUrl.trim() : null)
+        : existingContract.documentUrl
     };
     
     // undefined değerleri kaldır (Prisma bunları güncellemez)
