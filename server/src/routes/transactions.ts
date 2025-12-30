@@ -94,6 +94,16 @@ router.post('/', authenticateToken, async (req, res) => {
 // Update transaction
 router.put('/:id', authenticateToken, async (req, res) => {
   try {
+    // documentUrl için: eğer request'te gönderilmediyse (undefined), mevcut değeri koru
+    // eğer boş string gönderildiyse null yap (kullanıcı silmek istiyor)
+    // eğer değer gönderildiyse o değeri kullan
+    let documentUrlValue: string | null | undefined = undefined;
+    if (req.body.documentUrl !== undefined) {
+      documentUrlValue = req.body.documentUrl && req.body.documentUrl.trim() !== '' 
+        ? req.body.documentUrl 
+        : null;
+    }
+    
     const data: any = {
       ...req.body,
       taxes: req.body.taxes && req.body.taxes.length > 0 ? req.body.taxes : null,
@@ -101,7 +111,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
       // Boş string'leri null'a çevir
       contractId: req.body.contractId && req.body.contractId.trim() !== '' ? req.body.contractId : null,
       invoiceNumber: req.body.invoiceNumber && req.body.invoiceNumber.trim() !== '' ? req.body.invoiceNumber : null,
-      documentUrl: req.body.documentUrl && req.body.documentUrl.trim() !== '' ? req.body.documentUrl : null,
+      documentUrl: documentUrlValue,
       entityId: req.body.entityId && req.body.entityId.trim() !== '' ? req.body.entityId : null,
       bankAccountId: req.body.bankAccountId && req.body.bankAccountId.trim() !== '' ? req.body.bankAccountId : null,
       bankCardId: req.body.bankCardId && req.body.bankCardId.trim() !== '' ? req.body.bankCardId : null,

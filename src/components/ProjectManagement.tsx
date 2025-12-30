@@ -924,9 +924,10 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
     if (!selectedProject || !newTrans.amount || !newTrans.description) return;
     
     try {
-      let documentUrl = null;
+      // Mevcut documentUrl'yi koru, yeni dosya yüklenirse üzerine yaz
+      let documentUrl = newTrans.documentUrl || null;
       
-      // Belge varsa Google Drive'a yükle
+      // Yeni belge varsa Google Drive'a yükle
       if (documentFile) {
         setIsUploadingDocument(true);
         try {
