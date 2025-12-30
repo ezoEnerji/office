@@ -2536,22 +2536,53 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                              return true;
                           });
                           const pendingCount = projectInvoices.filter(inv => inv.status === 'issued' || inv.status === 'overdue').length;
-                          const totalPayments = projectPayments.reduce((sum, p) => sum + p.amount, 0);
+                          
+                          // Para birimine göre gelen ve giden ödemeleri grupla
+                          const paymentsByCurrency: Record<string, { incoming: number; outgoing: number }> = {};
+                          projectPayments.forEach(p => {
+                             const currency = p.currency || 'TRY';
+                             if (!paymentsByCurrency[currency]) {
+                                paymentsByCurrency[currency] = { incoming: 0, outgoing: 0 };
+                             }
+                             if (p.paymentType === 'incoming') {
+                                paymentsByCurrency[currency].incoming += p.amount;
+                             } else {
+                                paymentsByCurrency[currency].outgoing += p.amount;
+                             }
+                          });
+                          
+                          const currencies = Object.keys(paymentsByCurrency);
                           
                           return (
-                             <div className="ml-auto flex items-center gap-6 text-sm">
-                                <div className="flex items-center gap-2">
-                                   <Receipt size={16} className="text-blue-500" />
-                                   <span className="text-slate-600">Fatura: <strong className="text-slate-800">{projectInvoices.length}</strong></span>
+                             <div className="ml-auto flex flex-col gap-2 text-sm">
+                                <div className="flex items-center gap-6">
+                                   <div className="flex items-center gap-2">
+                                      <Receipt size={16} className="text-blue-500" />
+                                      <span className="text-slate-600">Fatura: <strong className="text-slate-800">{projectInvoices.length}</strong></span>
+                                   </div>
+                                   <div className="flex items-center gap-2">
+                                      <AlertCircle size={16} className="text-orange-500" />
+                                      <span className="text-slate-600">Bekleyen: <strong className="text-orange-600">{pendingCount}</strong></span>
+                                   </div>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                   <Wallet size={16} className="text-green-500" />
-                                   <span className="text-slate-600">Ödeme: <strong className="text-green-600">{formatCurrency(totalPayments, selectedProject.agreementCurrency)}</strong></span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                   <AlertCircle size={16} className="text-orange-500" />
-                                   <span className="text-slate-600">Bekleyen: <strong className="text-orange-600">{pendingCount}</strong></span>
-                                </div>
+                                {currencies.length > 0 && (
+                                   <div className="flex flex-wrap items-center gap-4 text-xs">
+                                      {currencies.map(currency => {
+                                         const data = paymentsByCurrency[currency];
+                                         const net = data.incoming - data.outgoing;
+                                         return (
+                                            <div key={currency} className="flex items-center gap-3 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">
+                                               <span className="font-medium text-slate-500">{currency}:</span>
+                                               <span className="text-green-600">+{formatCurrency(data.incoming, currency as Currency)}</span>
+                                               <span className="text-red-600">-{formatCurrency(data.outgoing, currency as Currency)}</span>
+                                               <span className={`font-semibold ${net >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                                                  = {net >= 0 ? '+' : ''}{formatCurrency(net, currency as Currency)}
+                                               </span>
+                                            </div>
+                                         );
+                                      })}
+                                   </div>
+                                )}
                              </div>
                           );
                        })()}
