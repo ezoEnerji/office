@@ -99,12 +99,93 @@ router.put('/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// Delete project
+// Delete project (with cascade delete of all related records)
 router.delete('/:id', authenticateToken, async (req, res) => {
   try {
-    await prisma.project.delete({ where: { id: req.params.id } });
-    res.json({ message: 'Proje silindi' });
+    const projectId = req.params.id;
+    
+    // Proje var mı kontrol et
+    const project = await prisma.project.findUnique({
+      where: { id: projectId }
+    });
+    
+    if (!project) {
+      return res.status(404).json({ error: 'Proje bulunamadı' });
+    }
+    
+    console.log(`Proje siliniyor: ${project.name} (${projectId})`);
+    
+    // 1. Bu projenin faturalarına bağlı ödemeleri sil
+    const projectInvoices = await prisma.invoice.findMany({
+      where: { projectId },
+      select: { id: true }
+    });
+    const invoiceIds = projectInvoices.map(inv => inv.id);
+    
+    if (invoiceIds.length > 0) {
+      // Önce ödemelere bağlı transaction'ları sil
+      const payments = await prisma.payment.findMany({
+        where: { invoiceId: { in: invoiceIds } },
+        select: { transactionId: true }
+      });
+      const paymentTransactionIds = payments
+        .map(p => p.transactionId)
+        .filter((id): id is string => id !== null);
+      
+      // Ödemeleri sil
+      const deletedPayments = await prisma.payment.deleteMany({
+        where: { invoiceId: { in: invoiceIds } }
+      });
+      console.log(`- ${deletedPayments.count} ödeme silindi`);
+      
+      // Ödeme transaction'larını sil
+      if (paymentTransactionIds.length > 0) {
+        await prisma.transaction.deleteMany({
+          where: { id: { in: paymentTransactionIds } }
+        });
+      }
+    }
+    
+    // 2. Bu projenin tüm transaction'larını sil
+    const deletedTransactions = await prisma.transaction.deleteMany({
+      where: { projectId }
+    });
+    console.log(`- ${deletedTransactions.count} işlem silindi`);
+    
+    // 3. Bu projenin tüm faturalarını sil
+    const deletedInvoices = await prisma.invoice.deleteMany({
+      where: { projectId }
+    });
+    console.log(`- ${deletedInvoices.count} fatura silindi`);
+    
+    // 4. Bu projenin tüm sözleşmelerini sil
+    const deletedContracts = await prisma.contract.deleteMany({
+      where: { projectId }
+    });
+    console.log(`- ${deletedContracts.count} sözleşme silindi`);
+    
+    // 5. Bu projeye bağlı belgeleri sil
+    const deletedDocuments = await prisma.document.deleteMany({
+      where: { relatedId: projectId }
+    });
+    console.log(`- ${deletedDocuments.count} belge silindi`);
+    
+    // 6. Son olarak projeyi sil
+    await prisma.project.delete({ where: { id: projectId } });
+    console.log(`Proje başarıyla silindi: ${project.name}`);
+    
+    res.json({ 
+      message: 'Proje ve tüm bağlı veriler silindi',
+      deleted: {
+        payments: invoiceIds.length > 0 ? 'silindi' : 0,
+        transactions: deletedTransactions.count,
+        invoices: deletedInvoices.count,
+        contracts: deletedContracts.count,
+        documents: deletedDocuments.count
+      }
+    });
   } catch (error: any) {
+    console.error('Proje silme hatası:', error);
     res.status(400).json({ error: error.message });
   }
 });
