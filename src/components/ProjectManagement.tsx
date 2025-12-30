@@ -1980,7 +1980,7 @@ export const ProjectManagement: React.FC<ProjectManagementProps> = ({
                                      : t.amount * t.exchangeRate;
                                  return (
                                     <tr key={t.id} className="hover:bg-slate-50 transition">
-                                       <td className="p-4 text-slate-600 whitespace-nowrap">{t.date}</td>
+                                       <td className="p-4 text-slate-600 whitespace-nowrap">{new Date(t.date).toLocaleDateString('tr-TR')}</td>
                                        <td className="p-4 font-medium text-slate-800">
                                           <div className="flex items-center gap-2">
                                              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
